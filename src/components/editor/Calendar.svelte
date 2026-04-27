@@ -233,6 +233,20 @@
   function barDays(/** @type {import('../../lib/types.js').Bar} */ bar) {
     return dateRange(bar.開始, bar.終了).filter(d => dates.includes(d));
   }
+
+  /** バーのバルーン文字列（HTML title 属性用） */
+  function buildBarTitle(/** @type {import('../../lib/types.js').Bar} */ bar) {
+    const parts = [bar.ラベル];
+    if (bar.サブラベル) parts.push(bar.サブラベル);
+    const total = calcBarHours(bar);
+    if (total) parts.push(`${total}h`);
+    if (bar.休工) parts.push('休工');
+    if (bar.日別) {
+      const half = Object.entries(bar.日別).filter(([_, v]) => v !== '全日');
+      if (half.length) parts.push(half.map(([d, v]) => `${d.slice(5)} ${v}`).join(', '));
+    }
+    return parts.join(' / ');
+  }
 </script>
 
 <div class="cal-wrap">
@@ -243,7 +257,7 @@
       --lw: {LABEL_WIDTH}px;
       --rw: {REMARK_WIDTH}px;
       --tw: {TOTAL_WIDTH}px;
-      grid-template-columns: var(--lw) repeat({dates.length}, minmax(var(--cw), max-content)) var(--rw) var(--tw);
+      grid-template-columns: var(--lw) repeat({dates.length}, var(--cw)) var(--rw) var(--tw);
     "
   >
     <!-- 行1: ヘッダ -->
@@ -299,9 +313,13 @@
         {band.バー.reduce((s, b) => s + calcBarHours(b), 0)}h
       </div>
 
-      <!-- バー：日ごとにセグメントを描画（per-day 半日対応） -->
+      <!-- バー：視覚セグメント（日ごと）+ ラベル（バー全範囲に収まる別グリッドアイテム） -->
       {#each band.バー as bar, idx (idx)}
         {@const days = barDays(bar)}
+        {@const sIdx = dates.indexOf(bar.開始)}
+        {@const eIdx = dates.indexOf(bar.終了)}
+        {@const sCol = sIdx + 2}
+        {@const eCol = eIdx + 2}
         {#each days as d, di (d)}
           {@const col = colIdxOf(d)}
           {@const state = bar.日別?.[d] ?? '全日'}
@@ -311,27 +329,20 @@
               style="grid-column: {col}; grid-row: {bandStartRow + bi};"
               onclick={(e) => onBarTap(bi, idx, e)}
               aria-label={`バー: ${bar.ラベル}`}
-            >
-              {#if di === 0}
-                <!-- 視覚: 絶対配置でバー全体を横断して表示できる -->
-                <span class="bar-label-overlay">
-                  <span class="bar-main">{bar.ラベル}</span>
-                  {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
-                </span>
-                <!-- 単日のときは通常フローのスペーサーで列を広げる -->
-                {#if days.length === 1}
-                  <span class="bar-label-spacer" aria-hidden="true">
-                    <span class="bar-main">{bar.ラベル}</span>
-                    {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
-                  </span>
-                {/if}
-              {/if}
-              {#if di === days.length - 1}
-                <span class="bar-h">{calcBarHours(bar)}h</span>
-              {/if}
-            </button>
+            ></button>
           {/if}
         {/each}
+        {#if sCol >= 2 && eCol >= 2}
+          <div
+            class="bar-label"
+            style="grid-column: {sCol} / {eCol + 1}; grid-row: {bandStartRow + bi};"
+            title={buildBarTitle(bar)}
+          >
+            <span class="bar-main">{bar.ラベル}</span>
+            {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
+            <span class="bar-h">{calcBarHours(bar)}h</span>
+          </div>
+        {/if}
       {/each}
     {/each}
 
@@ -511,12 +522,8 @@
     cursor: pointer;
     z-index: 2;
     position: relative;
-    padding: 2px 4px;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    overflow: visible;
+    padding: 0;
+    overflow: hidden;
   }
   .bar-seg.is-first { z-index: 3; }   /* オーバーレイ・ラベルを上に */
   .bar-seg.全日 { justify-self: stretch; }
@@ -530,48 +537,44 @@
     border-color: #6b7280;
     color: #6b7280;
   }
-  /* マルチ日: 絶対配置で範囲一杯まで表示 */
-  .bar-label-overlay {
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    transform: translateY(-50%);
+  /* バーラベル：バー全範囲を覆う別グリッドアイテム。はみ出さない（overflow:hidden） */
+  .bar-label {
+    align-self: center;
+    min-height: 32px;
     display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-    white-space: nowrap;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
     pointer-events: none;
     z-index: 4;
-  }
-  /* 単日: 通常フローでセル幅を広げる */
-  .bar-label-spacer {
-    visibility: hidden;
-    display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-    white-space: nowrap;
-    pointer-events: none;
-    flex: 0 0 auto;
+    overflow: hidden;
+    background: transparent;
   }
   .bar-main {
     font-weight: 600;
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .bar-sub {
     font-size: 10px;
     color: var(--c-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+    min-width: 0;
   }
   .bar-h {
-    margin-left: auto;
     font-size: 9px;
     color: var(--c-muted);
     background: rgba(255,255,255,0.85);
     padding: 0 2px;
     border-radius: 2px;
-    pointer-events: none;
     flex: 0 0 auto;
-    z-index: 5;
-    position: relative;
   }
 
   .remark { padding: 2px 4px; }
