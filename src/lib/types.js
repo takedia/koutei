@@ -1,23 +1,29 @@
-// データモデル定義（JSDoc型 + ファクトリ関数）
-// IndexedDB および GitHub 保存時の JSON シリアライズはこの形に揃える
+// データモデル定義
+// バンド = 横一列の作業行（写真様式）。デフォルト「作業1」「作業2」…で編集可（例：「土工」など大分類）。
+// 日次セルの各項目には 区分（自社/リース/外注）を持たせ、表示時に色分け。
 
 import dayjs from 'dayjs';
 import { uuid } from './utils/uuid.js';
 
 /**
+ * @typedef {'自社'|'リース'} 重機等区分
+ * @typedef {'自社'|'外注'}  人員区分
+ */
+
+/**
  * @typedef {Object} Koutei
  * @property {string} id
  * @property {KouteiMeta} meta
- * @property {KojiBlock[]} 工事ブロック
+ * @property {KojiBlock[]} 工事ブロック   // 当面 length=1 固定
  */
 
 /**
  * @typedef {Object} KouteiMeta
  * @property {string} 発注者
- * @property {string} 作成日              // ISO date YYYY-MM-DD
+ * @property {string} 作成日
  * @property {{開始: string, 終了: string}} 対象期間
  * @property {'2週'|'月間'} 提出種別
- * @property {string} 最終更新            // ISO datetime
+ * @property {string} 最終更新
  * @property {number} 版数
  */
 
@@ -25,60 +31,57 @@ import { uuid } from './utils/uuid.js';
  * @typedef {Object} KojiBlock
  * @property {string} 工事名
  * @property {string} 工事番号
- * @property {Band[]} バンド
  * @property {string} 職長名
- * @property {Record<string, DayCell>} 日次セル   // key: YYYY-MM-DD
- * @property {string} 備考
+ * @property {Band[]} バンド
+ * @property {Record<string, DayCell>} 日次セル
  */
 
 /**
  * @typedef {Object} Band
+ * @property {string} ラベル          // "作業1" / "土工" 等、編集可
+ * @property {string} 備考            // 行ごとの補足
  * @property {Bar[]} バー
  */
 
 /**
  * @typedef {Object} Bar
- * @property {string} ラベル              // 工種名（β上段）
- * @property {string} サブラベル          // 数量等（β下段）
- * @property {string} 開始                // YYYY-MM-DD
- * @property {string} 終了                // YYYY-MM-DD
+ * @property {string} ラベル
+ * @property {string} サブラベル
+ * @property {string} 開始
+ * @property {string} 終了
  * @property {'AM'|'全日'} 始点位置
  * @property {'PM'|'全日'} 終点位置
- * @property {boolean} 雨天
  * @property {boolean} 休工
  */
 
 /**
  * @typedef {Object} DayCell
  * @property {string} 人員
+ * @property {人員区分} 人員区分
  * @property {string} 重機
+ * @property {重機等区分} 重機区分
  * @property {string} 回送
+ * @property {重機等区分} 回送区分
  * @property {string} 車両
+ * @property {重機等区分} 車両区分
  * @property {string} その他
+ * @property {重機等区分} その他区分
  */
 
-/**
- * @typedef {Object} 設定
- * @property {string|null} PAT暗号化
- * @property {AddressPreset[]} 宛先プリセット
- * @property {string[]} 工種辞書
- * @property {string[]} 人員プリセット
- * @property {string[]} 重機プリセット
- * @property {string[]} 車両プリセット
- * @property {string} 件名テンプレ
- * @property {{owner: string, repo: string, branch: string}|null} 自分のリポ
- */
+/** @returns {DayCell} */
+function emptyDayCell() {
+  return {
+    人員: '', 人員区分: '自社',
+    重機: '', 重機区分: '自社',
+    回送: '', 回送区分: '自社',
+    車両: '', 車両区分: '自社',
+    その他: '', その他区分: '自社'
+  };
+}
+
+// ───────────────── ファクトリ ─────────────────
 
 /**
- * @typedef {Object} AddressPreset
- * @property {string} ラベル
- * @property {string} メアド
- */
-
-// ───────────────────────── ファクトリ ─────────────────────────
-
-/**
- * 新しい工程表を作成
  * @param {{提出種別?: '2週'|'月間', 開始日?: string}} opts
  * @returns {Koutei}
  */
@@ -86,7 +89,7 @@ export function createKoutei(opts = {}) {
   const today = dayjs();
   const 提出種別 = opts.提出種別 ?? '2週';
   const 開始 = opts.開始日 ?? today.format('YYYY-MM-DD');
-  const days = 提出種別 === '2週' ? 14 : daysInMonth(開始);
+  const days = 提出種別 === '2週' ? 14 : dayjs(開始).daysInMonth();
   const 終了 = dayjs(開始).add(days - 1, 'day').format('YYYY-MM-DD');
   return {
     id: uuid(),
@@ -103,7 +106,6 @@ export function createKoutei(opts = {}) {
 }
 
 /**
- * 工事ブロックの初期値
  * @param {string} 開始
  * @param {string} 終了
  * @returns {KojiBlock}
@@ -112,10 +114,12 @@ export function createKojiBlock(開始, 終了) {
   return {
     工事名: '',
     工事番号: '',
-    バンド: [{ バー: [] }, { バー: [] }],   // デフォルト2バンド
     職長名: '',
-    日次セル: createEmptyDayCells(開始, 終了),
-    備考: ''
+    バンド: [
+      { ラベル: '作業1', 備考: '', バー: [] },
+      { ラベル: '作業2', 備考: '', バー: [] }
+    ],
+    日次セル: createEmptyDayCells(開始, 終了)
   };
 }
 
@@ -130,24 +134,47 @@ export function createEmptyDayCells(開始, 終了) {
   let cur = dayjs(開始);
   const end = dayjs(終了);
   while (cur.isBefore(end) || cur.isSame(end)) {
-    cells[cur.format('YYYY-MM-DD')] = {
-      人員: '', 重機: '', 回送: '', 車両: '', その他: ''
-    };
+    cells[cur.format('YYYY-MM-DD')] = emptyDayCell();
     cur = cur.add(1, 'day');
   }
   return cells;
 }
 
 /**
- * 月の日数（YYYY-MM-DD の月の日数）
- * @param {string} dateStr
+ * 旧バージョンで保存されたデータを最新形に整形（破壊的）
+ * @param {any} k
+ * @returns {Koutei}
  */
-function daysInMonth(dateStr) {
-  return dayjs(dateStr).daysInMonth();
+export function migrateKoutei(k) {
+  if (!k || !k.工事ブロック) return k;
+  for (const block of k.工事ブロック) {
+    if (block.職長名 == null) block.職長名 = '';
+    for (let i = 0; i < block.バンド.length; i++) {
+      const b = block.バンド[i];
+      if (b.ラベル == null) b.ラベル = `作業${i + 1}`;
+      if (b.備考 == null) b.備考 = '';
+      for (const bar of b.バー ?? []) {
+        if (bar.休工 == null) bar.休工 = false;
+        delete bar.雨天;       // 仕様変更で削除
+      }
+    }
+    for (const date of Object.keys(block.日次セル ?? {})) {
+      const c = block.日次セル[date];
+      if (!c) { block.日次セル[date] = emptyDayCell(); continue; }
+      if (c.人員区分 == null) c.人員区分 = '自社';
+      if (c.重機区分 == null) c.重機区分 = '自社';
+      if (c.回送区分 == null) c.回送区分 = '自社';
+      if (c.車両区分 == null) c.車両区分 = '自社';
+      if (c.その他区分 == null) c.その他区分 = '自社';
+    }
+    delete block.備考;          // 旧フィールド除去
+  }
+  return k;
 }
 
+// ───────────────── 計算 ─────────────────
+
 /**
- * バーの合計時間を計算（h）
  * @param {Bar} bar
  * @returns {number}
  */
@@ -157,9 +184,7 @@ export function calcBarHours(bar) {
   const end = dayjs(bar.終了);
   const totalDays = end.diff(start, 'day') + 1;
   let hours = totalDays * 8;
-  if (bar.始点位置 === 'AM' && totalDays >= 1) hours -= 4;  // AM始まり=その日は4hのみ
-  if (bar.終点位置 === 'PM' && totalDays >= 1) hours -= 4;  // PM終わり=その日は4hのみ
-  // ※始点AMの定義: 始日のAMから開始 → 始日は4h勤務 ではなく「始日PMから開始」がAM以外。
-  //   ここでは「AM=半日のみ(4h)、全日=8h」の解釈で計算。
+  if (bar.始点位置 === 'AM') hours -= 4;
+  if (bar.終点位置 === 'PM') hours -= 4;
   return Math.max(0, hours);
 }

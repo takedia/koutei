@@ -8,6 +8,7 @@
 
 import { get, set, del, keys } from 'idb-keyval';
 import { KOUSHU_DEFAULT } from './data/koushu.js';
+import { migrateKoutei } from './types.js';
 
 const PREFIX = 'koutei:';
 
@@ -45,12 +46,13 @@ export async function loadIndexByMonth() {
 }
 
 /**
- * 工程表本体取得
+ * 工程表本体取得（旧バージョン形式は読み込み時に移行）
  * @param {string} id
  * @returns {Promise<import('./types.js').Koutei | undefined>}
  */
 export async function loadKoutei(id) {
-  return get(PREFIX + id);
+  const raw = await get(PREFIX + id);
+  return raw ? migrateKoutei(raw) : raw;
 }
 
 /**
@@ -144,7 +146,7 @@ export async function loadSettings() {
 
 /** @param {import('./types.js').設定} settings */
 export async function saveSettings(settings) {
-  await set('settings', settings);
+  await set('settings', JSON.parse(JSON.stringify(settings)));
 }
 
 /** @returns {import('./types.js').設定} */
@@ -153,7 +155,6 @@ function defaultSettings() {
     PAT暗号化: null,
     宛先プリセット: [],
     工種辞書: [...KOUSHU_DEFAULT],
-    人員プリセット: [],
     重機プリセット: ['0.7BH', '0.45BH', '0.25BH', 'ラフター25t', 'ラフター50t', '4tユニック'],
     車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック'],
     件名テンプレ: '[工程表] {工事番号} {期間}',

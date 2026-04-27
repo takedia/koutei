@@ -1,11 +1,11 @@
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import dayjs from 'dayjs';
   import { loadKoutei, saveKoutei } from '../lib/db.js';
   import { editingId, screen, toasts } from '../lib/stores.js';
-  import { formatRange, dateRange, addDays } from '../lib/utils/date.js';
-  import { createKojiBlock, createEmptyDayCells } from '../lib/types.js';
+  import { formatRange, addDays } from '../lib/utils/date.js';
+  import { createEmptyDayCells } from '../lib/types.js';
   import { blockTotalHours } from '../lib/utils/bars.js';
   import Calendar from './editor/Calendar.svelte';
   import KoushuPicker from './editor/KoushuPicker.svelte';
@@ -17,22 +17,27 @@
   let loading = $state(true);
   let dirty = $state(false);
 
-  // Modals
+  // 工事ブロックは1つ固定
+  let block = $derived(koutei?.工事ブロック?.[0] ?? null);
+
+  // 工種ピッカー
   let pickerOpen = $state(false);
-  /** @type {(label: string|null) => void} */
+  /** @type {(label: string|null, opts?: {休工?: boolean}) => void} */
   let pickerCb = $state(() => {});
 
+  // バー編集
   let barEditorOpen = $state(false);
-  let barEditorBlockIdx = $state(-1);
   let barEditorBandIdx = $state(-1);
   let barEditorBarIdx = $state(-1);
 
+  // セル編集
   let cellEditorOpen = $state(false);
   let cellEditorTitle = $state('');
   let cellEditorValue = $state('');
-  /** @type {'人員プリセット'|'重機プリセット'|'車両プリセット'|null} */
-  let cellEditorPresetKey = $state(null);
-  /** @type {(v: string) => void} */
+  let cellEditorKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
+  let cellEditorKbnType = $state(/** @type {'人員'|'重機等'|null} */ (null));
+  let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|null} */ (null));
+  /** @type {(v: string, kbn: '自社'|'リース'|'外注') => void} */
   let cellEditorCb = $state(() => {});
 
   onMount(async () => {
@@ -51,9 +56,7 @@
     loading = false;
   });
 
-  function markDirty() {
-    dirty = true;
-  }
+  function markDirty() { dirty = true; }
 
   async function save() {
     if (!koutei) return;
@@ -77,16 +80,16 @@
     screen.set('home');
   }
 
-  /** @param {(label: string|null) => void} cb */
+  /** @param {(label: string|null, opts?: {休工?: boolean}) => void} cb */
   function openPicker(cb) {
     pickerCb = cb;
     pickerOpen = true;
   }
 
-  /** @param {string} label */
-  function pickerSelect(label) {
+  /** @param {string} label @param {{休工?: boolean}} [opts] */
+  function pickerSelect(label, opts) {
     pickerOpen = false;
-    pickerCb(label);
+    pickerCb(label, opts);
     markDirty();
   }
 
@@ -95,9 +98,8 @@
     pickerCb(null);
   }
 
-  /** @param {number} blockIdx @param {number} bandIdx @param {number} barIdx */
-  function openBarEditor(blockIdx, bandIdx, barIdx) {
-    barEditorBlockIdx = blockIdx;
+  /** @param {number} bandIdx @param {number} barIdx */
+  function openBarEditor(bandIdx, barIdx) {
     barEditorBandIdx = bandIdx;
     barEditorBarIdx = barIdx;
     barEditorOpen = true;
@@ -105,81 +107,65 @@
 
   /** @param {import('../lib/types.js').Bar} updated */
   function barEditorSave(updated) {
-    if (!koutei) return;
-    koutei.工事ブロック[barEditorBlockIdx].バンド[barEditorBandIdx].バー[barEditorBarIdx] = updated;
+    if (!block) return;
+    block.バンド[barEditorBandIdx].バー[barEditorBarIdx] = updated;
+    block.バンド = block.バンド;
     barEditorOpen = false;
     markDirty();
   }
 
   function barEditorDelete() {
-    if (!koutei) return;
-    const arr = koutei.工事ブロック[barEditorBlockIdx].バンド[barEditorBandIdx].バー;
-    arr.splice(barEditorBarIdx, 1);
+    if (!block) return;
+    block.バンド[barEditorBandIdx].バー.splice(barEditorBarIdx, 1);
+    block.バンド = block.バンド;
     barEditorOpen = false;
     markDirty();
   }
 
   /**
-   * セル編集を開く
-   * @param {number} blockIdx
    * @param {string} date
    * @param {'人員'|'重機'|'回送'|'車両'|'その他'} key
    */
-  function openCellEditor(blockIdx, date, key) {
-    if (!koutei) return;
-    const presetMap = {
-      '人員': '人員プリセット',
-      '重機': '重機プリセット',
-      '回送': null,
-      '車両': '車両プリセット',
-      'その他': null
+  function openCellEditor(date, key) {
+    if (!block) return;
+    /** @type {Record<string, {kbn: '人員'|'重機等', preset: '重機プリセット'|'車両プリセット'|null}>} */
+    const meta = {
+      '人員':   { kbn: '人員',   preset: null },
+      '重機':   { kbn: '重機等', preset: '重機プリセット' },
+      '回送':   { kbn: '重機等', preset: null },
+      '車両':   { kbn: '重機等', preset: '車両プリセット' },
+      'その他': { kbn: '重機等', preset: null }
     };
+    if (!block.日次セル[date]) {
+      block.日次セル[date] = {
+        人員: '', 人員区分: '自社',
+        重機: '', 重機区分: '自社',
+        回送: '', 回送区分: '自社',
+        車両: '', 車両区分: '自社',
+        その他: '', その他区分: '自社'
+      };
+    }
+    const cell = block.日次セル[date];
     cellEditorTitle = `${date} ${key}`;
-    cellEditorValue = koutei.工事ブロック[blockIdx].日次セル[date]?.[key] ?? '';
-    cellEditorPresetKey = /** @type {any} */ (presetMap[key]);
-    cellEditorCb = (v) => {
-      if (!koutei) return;
-      // 日次セル の対象日が無いケースに備えて初期化
-      if (!koutei.工事ブロック[blockIdx].日次セル[date]) {
-        koutei.工事ブロック[blockIdx].日次セル[date] = { 人員: '', 重機: '', 回送: '', 車両: '', その他: '' };
-      }
-      koutei.工事ブロック[blockIdx].日次セル[date][key] = v;
+    cellEditorValue = cell[key] ?? '';
+    cellEditorKbn = /** @type {any} */ (cell[`${key}区分`] ?? '自社');
+    cellEditorKbnType = /** @type {any} */ (meta[key].kbn);
+    cellEditorPresetKey = meta[key].preset;
+    cellEditorCb = (v, kbn) => {
+      if (!block) return;
+      block.日次セル[date][key] = v;
+      block.日次セル[date][`${key}区分`] = kbn;
+      block.日次セル = block.日次セル;
       cellEditorOpen = false;
       markDirty();
     };
     cellEditorOpen = true;
   }
 
-  function cellEditorCancel() {
-    cellEditorOpen = false;
-  }
-
-  function addBlock() {
-    if (!koutei) return;
-    koutei.工事ブロック.push(createKojiBlock(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了));
-    markDirty();
-  }
-
-  /** @param {number} idx */
-  function removeBlock(idx) {
-    if (!koutei) return;
-    if (koutei.工事ブロック.length <= 1) {
-      toasts.error('工事ブロックは最低1つ必要です');
-      return;
-    }
-    if (!confirm(`工事ブロック${idx + 1}を削除します。よろしいですか？`)) return;
-    koutei.工事ブロック.splice(idx, 1);
-    markDirty();
-  }
-
-  /**
-   * 期間種別切替（2週 ↔ 月間）
-   * @param {'2週'|'月間'} kind
-   */
-  function changeKind(kind) {
+  /** 期間種別切替（ダイアログなし、即時切替） */
+  function changeKind(/** @type {'2週'|'月間'} */ kind) {
     if (!koutei) return;
     if (koutei.meta.提出種別 === kind) return;
-    if (!confirm(`${kind}に切り替えます。期間外のバー・セル入力は失われる可能性があります。よろしいですか？`)) return;
 
     const startBase = koutei.meta.対象期間.開始;
     const newStart = kind === '月間' ? dayjs(startBase).startOf('month').format('YYYY-MM-DD') : startBase;
@@ -190,26 +176,23 @@
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
 
-    // 日次セル を新期間で再構築（既存値は保持）
-    for (const block of koutei.工事ブロック) {
+    for (const b of koutei.工事ブロック) {
       const fresh = createEmptyDayCells(newStart, newEnd);
       for (const d of Object.keys(fresh)) {
-        if (block.日次セル[d]) fresh[d] = block.日次セル[d];
+        if (b.日次セル[d]) fresh[d] = b.日次セル[d];
       }
-      block.日次セル = fresh;
+      b.日次セル = fresh;
     }
     markDirty();
   }
 
-  /**
-   * 前週コピー：既存バー全てを +7日した複製を追加（期間内のみ）
-   */
+  /** 前週コピー：既存バー全てを+7日した複製を追加 */
   function copyPrevWeek() {
     if (!koutei) return;
     const end = koutei.meta.対象期間.終了;
     let added = 0;
-    for (const block of koutei.工事ブロック) {
-      for (const band of block.バンド) {
+    for (const b of koutei.工事ブロック) {
+      for (const band of b.バンド) {
         const newBars = [];
         for (const bar of band.バー) {
           const ns = addDays(bar.開始, 7);
@@ -229,7 +212,6 @@
     }
   }
 
-  // 期間スタート移動（2週ビュー時）
   /** @param {number} delta */
   function shiftPeriod(delta) {
     if (!koutei) return;
@@ -238,20 +220,19 @@
     const newEnd = addDays(newStart, 13);
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
-    for (const block of koutei.工事ブロック) {
+    for (const b of koutei.工事ブロック) {
       const fresh = createEmptyDayCells(newStart, newEnd);
       for (const d of Object.keys(fresh)) {
-        if (block.日次セル[d]) fresh[d] = block.日次セル[d];
+        if (b.日次セル[d]) fresh[d] = b.日次セル[d];
       }
-      block.日次セル = fresh;
+      b.日次セル = fresh;
     }
     markDirty();
   }
 
-  /** @type {import('../lib/types.js').Bar | null} */
   let editingBar = $derived(
-    barEditorOpen && koutei
-      ? koutei.工事ブロック[barEditorBlockIdx]?.バンド[barEditorBandIdx]?.バー[barEditorBarIdx] ?? null
+    barEditorOpen && block
+      ? block.バンド[barEditorBandIdx]?.バー[barEditorBarIdx] ?? null
       : null
   );
 </script>
@@ -264,11 +245,20 @@
 
 {#if loading}
   <p class="muted">読み込み中…</p>
-{:else if !koutei}
+{:else if !koutei || !block}
   <p class="muted">工程表が見つかりませんでした。</p>
 {:else}
-  <div class="topbar">
-    <div class="seg">
+  <!-- メタ情報（コンパクト1行） -->
+  <section class="meta-row">
+    <input class="ipt" type="text" bind:value={koutei.meta.発注者} oninput={markDirty} placeholder="発注者" aria-label="発注者" />
+    <input class="ipt flex" type="text" bind:value={block.工事名} oninput={markDirty} placeholder="工事名" aria-label="工事名" />
+    <input class="ipt num" type="text" bind:value={block.工事番号} oninput={markDirty} placeholder="工事番号" aria-label="工事番号" />
+    <input class="ipt" type="text" bind:value={block.職長名} oninput={markDirty} placeholder="職長名" aria-label="職長名" />
+  </section>
+
+  <!-- 期間切替＋ナビ -->
+  <section class="topbar">
+    <div class="seg-strong">
       <button class:on={koutei.meta.提出種別 === '2週'} onclick={() => changeKind('2週')}>2週</button>
       <button class:on={koutei.meta.提出種別 === '月間'} onclick={() => changeKind('月間')}>月間</button>
     </div>
@@ -281,55 +271,22 @@
         <button class="nav" onclick={() => shiftPeriod(7)} aria-label="1週後">›</button>
       {/if}
     </div>
-  </div>
+    <div class="hours-pill">{blockTotalHours(block)}h</div>
+  </section>
 
+  <!-- カレンダー本体 -->
   <main>
-    <section class="meta">
-      <label>
-        <span class="lab">発注者</span>
-        <input type="text" bind:value={koutei.meta.発注者} oninput={markDirty} placeholder="○○建設" />
-      </label>
-    </section>
-
-    {#each koutei.工事ブロック as block, bi (bi)}
-      <section class="block">
-        <div class="block-head">
-          <h2>工事ブロック {bi + 1}<span class="hours">合計 {blockTotalHours(block)}h</span></h2>
-          {#if koutei.工事ブロック.length > 1}
-            <button class="rm" onclick={() => removeBlock(bi)} aria-label="削除">🗑</button>
-          {/if}
-        </div>
-
-        <div class="row2">
-          <label>
-            <span class="lab">工事名</span>
-            <input type="text" bind:value={block.工事名} oninput={markDirty} placeholder="○○線道路改良工事" />
-          </label>
-          <label class="num">
-            <span class="lab">工事番号</span>
-            <input type="text" bind:value={block.工事番号} oninput={markDirty} placeholder="001" />
-          </label>
-        </div>
-
-        <Calendar
-          {block}
-          periodStart={koutei.meta.対象期間.開始}
-          periodEnd={koutei.meta.対象期間.終了}
-          onChange={markDirty}
-          onPickKoushu={openPicker}
-          onEditBar={(bandIdx, barIdx) => openBarEditor(bi, bandIdx, barIdx)}
-          onEditCell={(date, key) => openCellEditor(bi, date, key)}
-        />
-
-        <label>
-          <span class="lab">備考</span>
-          <textarea bind:value={block.備考} oninput={markDirty} rows="2" placeholder="No.10+5 〜 No.12 ／ 天候により工程変更可能性あり"></textarea>
-        </label>
-      </section>
-    {/each}
+    <Calendar
+      {block}
+      periodStart={koutei.meta.対象期間.開始}
+      periodEnd={koutei.meta.対象期間.終了}
+      onChange={markDirty}
+      onPickKoushu={openPicker}
+      onEditBar={openBarEditor}
+      onEditCell={openCellEditor}
+    />
 
     <div class="footer-actions">
-      <button onclick={addBlock}>＋工事ブロック追加</button>
       <button onclick={copyPrevWeek}>🔁 前週コピー</button>
     </div>
   </main>
@@ -352,9 +309,11 @@
   open={cellEditorOpen}
   title={cellEditorTitle}
   value={cellEditorValue}
+  区分={cellEditorKbn}
+  区分種別={cellEditorKbnType}
   presetKey={cellEditorPresetKey}
   onSave={cellEditorCb}
-  onCancel={cellEditorCancel}
+  onCancel={() => cellEditorOpen = false}
 />
 
 <style>
@@ -362,12 +321,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-bottom: 1px solid var(--c-border);
     background: #fff;
     position: sticky;
     top: 0;
-    z-index: 20;
+    z-index: 30;
   }
   .icon {
     border: none;
@@ -379,46 +338,66 @@
   h1 {
     flex: 1;
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     text-align: center;
   }
+  .meta-row {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    background: #fff;
+    border-bottom: 1px solid var(--c-border);
+    overflow-x: auto;
+  }
+  .ipt {
+    min-width: 88px;
+    min-height: 36px;
+    padding: 4px 8px;
+    font-size: 13px;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+  }
+  .ipt.flex { flex: 1; min-width: 140px; }
+  .ipt.num { width: 90px; min-width: 90px; }
+
   .topbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--c-border);
     background: #fafbfc;
     position: sticky;
     top: 49px;
-    z-index: 19;
+    z-index: 29;
   }
-  .seg {
+  .seg-strong {
     display: flex;
-    background: #f3f4f6;
+    border: 1.5px solid var(--c-accent);
     border-radius: 8px;
-    padding: 2px;
+    overflow: hidden;
   }
-  .seg button {
+  .seg-strong button {
     border: none;
-    background: transparent;
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    color: var(--c-muted);
-  }
-  .seg button.on {
     background: #fff;
-    color: var(--c-fg);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    color: var(--c-accent);
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 0;
+  }
+  .seg-strong button.on {
+    background: var(--c-accent);
+    color: #fff;
   }
   .period {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 13px;
+    flex: 1;
+    justify-content: center;
   }
   .nav {
     border: 1px solid var(--c-border);
@@ -428,69 +407,26 @@
     padding: 0;
     border-radius: 6px;
   }
+  .hours-pill {
+    background: #eef2ff;
+    color: var(--c-accent);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
   main {
-    padding: 12px;
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    max-width: 1200px;
+    gap: 10px;
+    max-width: 100%;
     margin: 0 auto;
   }
   .muted {
     text-align: center;
     color: var(--c-muted);
     margin: 24px;
-  }
-  .meta, .block {
-    border: 1px solid var(--c-border);
-    border-radius: 10px;
-    padding: 12px;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .block-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .block-head h2 {
-    margin: 0;
-    font-size: 14px;
-    color: var(--c-muted);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .hours {
-    font-size: 12px;
-    background: #eef2ff;
-    color: var(--c-accent);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-weight: 600;
-  }
-  .rm {
-    background: transparent;
-    border: 1px solid var(--c-border);
-    min-height: 32px;
-    padding: 0 10px;
-  }
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .lab {
-    font-size: 12px;
-    color: var(--c-muted);
-  }
-  .row2 {
-    display: grid;
-    grid-template-columns: 1fr 100px;
-    gap: 8px;
   }
   .footer-actions {
     display: flex;

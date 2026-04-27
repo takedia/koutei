@@ -6,26 +6,41 @@
    *   open: boolean,
    *   title: string,
    *   value: string,
-   *   presetKey: '人員プリセット'|'重機プリセット'|'車両プリセット'|null,
-   *   onSave: (v: string) => void,
+   *   区分: '自社'|'リース'|'外注',
+   *   区分種別: '人員'|'重機等'|null,
+   *   presetKey: '重機プリセット'|'車両プリセット'|null,
+   *   onSave: (v: string, kbn: '自社'|'リース'|'外注') => void,
    *   onCancel: () => void
    * }} */
-  let { open, title, value, presetKey, onSave, onCancel } = $props();
+  let { open, title, value, 区分, 区分種別, presetKey, onSave, onCancel } = $props();
 
   let local = $state('');
+  let localKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
   let presets = $state(/** @type {string[]} */ ([]));
   /** @type {import('../../lib/types.js').設定 | null} */
   let settings = $state(null);
+  let mounted = $state(false);
 
+  // 開いた瞬間に初期値をリセット（前回値が残らないように）
   $effect(() => {
-    local = value ?? '';
+    if (open) {
+      local = value ?? '';
+      localKbn = 区分 ?? '自社';
+    }
+  });
+
+  // プリセット読み込み（presetKey が変わったら更新）
+  $effect(() => {
+    if (mounted && settings && presetKey) {
+      presets = settings[presetKey] ?? [];
+    } else if (mounted) {
+      presets = [];
+    }
   });
 
   onMount(async () => {
     settings = await loadSettings();
-    if (presetKey && settings) {
-      presets = settings[presetKey];
-    }
+    mounted = true;
   });
 
   /** @param {string} v */
@@ -35,10 +50,17 @@
 
   async function addPreset() {
     const v = local.trim();
-    if (!v || !presetKey || !settings) return save();
-    if (presets.includes(v)) return save();
+    if (!v || !presetKey || !settings) {
+      save();
+      return;
+    }
+    if (presets.includes(v)) {
+      save();
+      return;
+    }
     if (!confirm(`「${v}」をプリセットに追加します。よろしいですか？`)) {
-      return save();
+      save();
+      return;
     }
     settings[presetKey] = [...presets, v];
     await saveSettings(settings);
@@ -47,11 +69,24 @@
   }
 
   function save() {
-    onSave(local.trim());
+    onSave(local.trim(), localKbn);
   }
 
   function clear() {
     local = '';
+  }
+
+  // 区分の選択肢を種別から決定
+  let kbnOptions = $derived(
+    区分種別 === '人員' ? /** @type {const} */ (['自社', '外注']) :
+    区分種別 === '重機等' ? /** @type {const} */ (['自社', 'リース']) :
+    /** @type {const} */ ([])
+  );
+
+  function kbnColor(/** @type {string} */ k) {
+    if (k === 'リース') return '#1f6feb';
+    if (k === '外注') return '#dc2626';
+    return '#1a1a1a';
   }
 </script>
 
@@ -66,7 +101,18 @@
 
       <div class="body">
         <!-- svelte-ignore a11y_autofocus -->
-        <input type="text" bind:value={local} autofocus />
+        <input type="text" bind:value={local} autofocus style="color: {kbnColor(localKbn)}; font-weight: 600;" />
+
+        {#if kbnOptions.length}
+          <div class="kbn">
+            <span class="caption">区分</span>
+            <div class="seg">
+              {#each kbnOptions as k (k)}
+                <button class:on={localKbn === k} onclick={() => localKbn = k} style="--kc: {kbnColor(k)};">{k}</button>
+              {/each}
+            </div>
+          </div>
+        {/if}
 
         {#if presets.length}
           <div class="presets">
@@ -132,6 +178,20 @@
   .x { border: none; background: transparent; font-size: 24px; padding: 0 8px; }
   .body { padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
   .caption { margin: 0; font-size: 12px; color: var(--c-muted); }
+  .kbn { display: flex; gap: 10px; align-items: center; }
+  .seg { display: flex; gap: 4px; flex: 1; }
+  .seg button {
+    flex: 1;
+    padding: 0 10px;
+    min-height: 40px;
+    background: #f9fafb;
+    border: 1px solid var(--c-border);
+  }
+  .seg button.on {
+    background: var(--kc);
+    color: #fff;
+    border-color: var(--kc);
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

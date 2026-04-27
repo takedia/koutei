@@ -44,7 +44,7 @@
           <input type="text" bind:value={local.ラベル} />
         </label>
         <label>
-          サブラベル（下段：数量・延長・面積など）
+          補足（下段：数量・延長・面積など）
           <input type="text" bind:value={local.サブラベル} placeholder="120m³ / L=12m など" />
         </label>
 
@@ -53,26 +53,22 @@
         </div>
 
         <div class="grid">
-          <div class="lab">始日扱い</div>
+          <div class="lab">始日</div>
           <div class="seg">
-            <button class:on={local.始点位置 === '全日'} onclick={() => local.始点位置 = '全日'}>全日(8h)</button>
-            <button class:on={local.始点位置 === 'AM'} onclick={() => local.始点位置 = 'AM'}>AM半日(4h)</button>
+            <button class:on={local.始点位置 === '全日'} onclick={() => local.始点位置 = '全日'}>全日 8h</button>
+            <button class:on={local.始点位置 === 'AM'} onclick={() => local.始点位置 = 'AM'}>PM始まり 4h</button>
           </div>
-          <div class="lab">終日扱い</div>
+          <div class="lab">終日</div>
           <div class="seg">
-            <button class:on={local.終点位置 === '全日'} onclick={() => local.終点位置 = '全日'}>全日(8h)</button>
-            <button class:on={local.終点位置 === 'PM'} onclick={() => local.終点位置 = 'PM'}>PM半日(4h)</button>
+            <button class:on={local.終点位置 === '全日'} onclick={() => local.終点位置 = '全日'}>全日 8h</button>
+            <button class:on={local.終点位置 === 'PM'} onclick={() => local.終点位置 = 'PM'}>AM終わり 4h</button>
           </div>
         </div>
 
         <div class="toggles">
           <label class="chk">
-            <input type="checkbox" bind:checked={local.雨天} />
-            <span>☂ 雨天</span>
-          </label>
-          <label class="chk">
             <input type="checkbox" bind:checked={local.休工} />
-            <span>休 休工</span>
+            <span>休 休工扱い</span>
           </label>
         </div>
 
@@ -124,89 +120,21 @@
     border-bottom: 1px solid var(--c-border);
   }
   header h2 { margin: 0; font-size: 16px; }
-  .x {
-    border: none;
-    background: transparent;
-    font-size: 24px;
-    padding: 0 8px;
-  }
-  .body {
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overflow: auto;
-  }
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
-    color: var(--c-muted);
-  }
-  label input {
-    color: var(--c-fg);
-  }
-  .period {
-    font-size: 14px;
-    background: #f3f4f6;
-    padding: 8px 12px;
-    border-radius: 6px;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    align-items: center;
-    gap: 6px 10px;
-  }
+  .x { border: none; background: transparent; font-size: 24px; padding: 0 8px; }
+  .body { padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--c-muted); }
+  label input { color: var(--c-fg); }
+  .period { font-size: 14px; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; }
+  .grid { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 6px 10px; }
   .lab { font-size: 13px; color: var(--c-muted); }
-  .seg {
-    display: flex;
-    gap: 4px;
-  }
-  .seg button {
-    flex: 1;
-    padding: 0 10px;
-    min-height: 40px;
-    background: #f9fafb;
-  }
-  .seg button.on {
-    background: var(--c-accent);
-    color: #fff;
-    border-color: var(--c-accent);
-  }
-  .toggles {
-    display: flex;
-    gap: 14px;
-  }
-  .chk {
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    color: var(--c-fg);
-    font-size: 14px;
-  }
-  .chk input {
-    min-height: 22px;
-    width: 22px;
-    height: 22px;
-  }
-  .hours {
-    text-align: right;
-    font-size: 14px;
-  }
-  footer {
-    display: flex;
-    gap: 8px;
-    padding: 10px 14px;
-    border-top: 1px solid var(--c-border);
-  }
-  footer .del {
-    background: #fee;
-    border-color: #fcc;
-    color: #b91c1c;
-  }
-  footer .save {
-    flex: 1;
-  }
+  .seg { display: flex; gap: 4px; }
+  .seg button { flex: 1; padding: 0 10px; min-height: 40px; background: #f9fafb; }
+  .seg button.on { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+  .toggles { display: flex; gap: 14px; }
+  .chk { flex-direction: row; align-items: center; gap: 6px; color: var(--c-fg); font-size: 14px; }
+  .chk input { min-height: 22px; width: 22px; height: 22px; }
+  .hours { text-align: right; font-size: 14px; }
+  footer { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--c-border); }
+  footer .del { background: #fee; border-color: #fcc; color: #b91c1c; }
+  footer .save { flex: 1; }
 </style>
