@@ -64,12 +64,16 @@ export async function exportKouteiAsXlsx(koutei) {
   const COL_TOTAL = 3 + N;
   const TOTAL_COLS = 3 + N;
 
-  // 列幅（2週なら 9、月間なら 6）
-  const dayWidth = N <= 16 ? 9 : 6;
+  // 列幅（固定）
+  const dayWidth = N <= 16 ? 8 : 5;
   ws.getColumn(COL_LABEL).width = 14;
   for (let i = 0; i < N; i++) ws.getColumn(COL_DATE_START + i).width = dayWidth;
   ws.getColumn(COL_REMARK).width = 18;
   ws.getColumn(COL_TOTAL).width = 8;
+
+  // バー画像（黒線・斜線）を一度だけ作って ID を取得
+  const normalBarId = wb.addImage({ base64: makeBarImageBase64(false), extension: 'png' });
+  const kyukoBarId  = wb.addImage({ base64: makeBarImageBase64(true),  extension: 'png' });
 
   // ──── 行1: タイトル
   let r = 1;
@@ -134,14 +138,23 @@ export async function exportKouteiAsXlsx(koutei) {
       if (isHoliday(dates[i])) cell.fill = solidFill(COLOR.休日塗り);
     }
 
-    // バー描画（セル結合＋太い4辺枠＋ラベル＋時間）
+    // バー描画（横線オブジェクトを画像として埋め込み）
     for (const bar of band.バー) {
       const sIdx = dates.indexOf(bar.開始);
       const eIdx = dates.indexOf(bar.終了);
       if (sIdx < 0 || eIdx < 0) continue;
       const sCol = COL_DATE_START + sIdx;
       const eCol = COL_DATE_START + eIdx;
-      paintBar(ws, r, sCol, eCol, bar);
+      const imageId = bar.休工 ? kyukoBarId : normalBarId;
+      ws.addImage(imageId, {
+        tl: { col: sCol - 1 + 0.05, row: r - 1 + 0.42 },
+        br: { col: eCol - 0.05,     row: r - 1 + 0.62 }
+      });
+      // バルーン（コメント）：マウスオーバーで詳細を確認
+      const note = buildBarNote(bar);
+      for (let c = sCol; c <= eCol; c++) {
+        ws.getCell(r, c).note = note;
+      }
     }
 
     // 備考
@@ -164,17 +177,16 @@ export async function exportKouteiAsXlsx(koutei) {
   const FIXED_KEYS = /** @type {const} */ (['人員', '重機', '回送', '車両', 'その他']);
   for (const key of FIXED_KEYS) {
     const M = block.固定行数[key];
-    const startR = r + 1;
     for (let si = 0; si < M; si++) {
       r++;
       ws.getRow(r).height = 22;
 
+      const subLabel = block.固定行ラベル?.[key]?.[si] ?? '';
+      const labText = si === 0 ? `${key}\n${subLabel}` : subLabel;
       const labCell = ws.getCell(r, COL_LABEL);
-      if (si === 0) {
-        labCell.value = key;
-        labCell.font = { bold: true };
-        labCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      }
+      labCell.value = labText;
+      labCell.font = { bold: true, size: 10 };
+      labCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       labCell.fill = solidFill(COLOR.固定行背);
       labCell.border = boxBorder(BORDER_THIN());
 
@@ -184,18 +196,18 @@ export async function exportKouteiAsXlsx(koutei) {
         if (isHoliday(dates[i])) cell.fill = solidFill(COLOR.休日塗り);
         const entry = block.日次セル[dates[i]]?.[key]?.[si];
         if (entry?.値) {
-          cell.value = entry.値;
+          // ラベルが「自社」以外なら「値(ラベル)」と表記、自社/空ならそのまま
+          const showSuffix = subLabel && subLabel !== '自社';
+          cell.value = showSuffix ? `${entry.値}(${subLabel})` : entry.値;
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
           cell.font = { bold: true, color: { argb: fontColor(entry.区分) }, size: 10 };
         }
       }
-      // 備考・合計は固定行背で塗る
       ws.getCell(r, COL_REMARK).border = boxBorder(BORDER_THIN());
       ws.getCell(r, COL_REMARK).fill = solidFill(COLOR.固定行背);
       ws.getCell(r, COL_TOTAL).border = boxBorder(BORDER_THIN());
       ws.getCell(r, COL_TOTAL).fill = solidFill(COLOR.固定行背);
     }
-    if (M > 1) ws.mergeCells(startR, COL_LABEL, r, COL_LABEL);
   }
 
   // 印刷タイトル
@@ -269,57 +281,53 @@ function setMetaRow(ws, r, items, totalCols) {
 }
 
 /**
- * バーを「太い枠の長方形」として描画
- * @param {*} ws
- * @param {number} row
- * @param {number} sCol
- * @param {number} eCol
+ * バーのバルーン（コメント）テキスト
  * @param {import('../types.js').Bar} bar
  */
-function paintBar(ws, row, sCol, eCol, bar) {
-  const med = BORDER_MED();
-  const fill = bar.休工
-    ? { type: 'pattern', pattern: 'lightUp', fgColor: { argb: 'FF9CA3AF' }, bgColor: { argb: 'FFFFFFFF' } }
-    : solidFill('FFFFFFFF');
-
-  // 各セルに太い枠と白塗り（休工は斜線）
-  for (let c = sCol; c <= eCol; c++) {
-    const cell = ws.getCell(row, c);
-    cell.fill = fill;
-    cell.border = {
-      top:    med,
-      bottom: med,
-      left:  c === sCol ? med : BORDER_THIN(),
-      right: c === eCol ? med : BORDER_THIN()
-    };
+function buildBarNote(bar) {
+  const lines = [];
+  lines.push(`工種: ${bar.ラベル}`);
+  if (bar.サブラベル) lines.push(`補足: ${bar.サブラベル}`);
+  lines.push(`期間: ${bar.開始} 〜 ${bar.終了}`);
+  lines.push(`合計: ${calcBarHours(bar)}h`);
+  if (bar.休工) lines.push('休工扱い');
+  if (bar.日別) {
+    const half = Object.entries(bar.日別).filter(([_, v]) => v !== '全日');
+    if (half.length) lines.push('半日: ' + half.map(([d, v]) => `${d.slice(5)} ${v}`).join(', '));
   }
-
-  // セル結合
-  if (sCol < eCol) ws.mergeCells(row, sCol, row, eCol);
-
-  // ラベル組み立て
-  const totalH = calcBarHours(bar);
-  const subParts = [];
-  if (bar.サブラベル) subParts.push(bar.サブラベル);
-  if (totalH) subParts.push(`${totalH}h`);
-  const halfNotes = halfDayNotes(bar);
-  if (halfNotes) subParts.push(halfNotes);
-  const subLine = subParts.join(' / ');
-
-  const m = ws.getCell(row, sCol);
-  m.value = subLine ? `${bar.ラベル}\n${subLine}` : bar.ラベル;
-  m.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-  m.font = { bold: true, size: 11 };
+  return lines.join('\n');
 }
 
-/** バーの始日AM・終日PM・中間半日のメモ */
-function halfDayNotes(/** @type {import('../types.js').Bar} */ bar) {
-  if (bar.休工) return '休';
-  if (!bar.日別) return '';
-  const notes = [];
-  for (const [d, s] of Object.entries(bar.日別)) {
-    if (s === 'AM') notes.push(`${d.slice(5)} AM`);
-    else if (s === 'PM') notes.push(`${d.slice(5)} PM`);
+/**
+ * バー画像（横線）を Canvas で生成して base64 で返す
+ * @param {boolean} 休工
+ */
+function makeBarImageBase64(休工) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 18;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  if (休工) {
+    // 灰色 + 斜線（休工）
+    ctx.fillStyle = '#D1D5DB';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#6B7280';
+    ctx.lineWidth = 1;
+    for (let x = -canvas.height; x < canvas.width + canvas.height; x += 6) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + canvas.height, canvas.height);
+      ctx.stroke();
+    }
+    // 上下に枠線
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+  } else {
+    // 黒の太い横線
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  return notes.length ? `(${notes.join(', ')})` : '';
+  return canvas.toDataURL('image/png').split(',')[1];
 }

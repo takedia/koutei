@@ -129,12 +129,19 @@
 
   function addFixed(/** @type {keyof import('../../lib/types.js').固定行数} */ key) {
     block.固定行数[key]++;
+    // 新サブ行のデフォルトラベル
+    const arr = block.固定行ラベル[key] ?? [];
+    let next;
+    if (key === '人員') next = arr.length === 0 ? '自社' : (arr.length === 1 ? '外注' : `外注${arr.length}`);
+    else next = arr.length === 0 ? '自社' : (arr.length === 1 ? 'リース' : `リース${arr.length}`);
+    block.固定行ラベル[key] = [...arr, next];
     block.日次セル = rebuildDayCells(periodStart, periodEnd, block.固定行数, block.日次セル);
     onChange();
   }
   function removeFixed(/** @type {keyof import('../../lib/types.js').固定行数} */ key) {
     if (block.固定行数[key] <= 1) return;
     block.固定行数[key]--;
+    block.固定行ラベル[key] = block.固定行ラベル[key].slice(0, block.固定行数[key]);
     block.日次セル = rebuildDayCells(periodStart, periodEnd, block.固定行数, block.日次セル);
     onChange();
   }
@@ -321,13 +328,24 @@
       {@const startRow = fixedRowStart(f.key)}
       {@const N = block.固定行数[f.key]}
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
-        {#if si === 0}
-          <div class="cell labelcell sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow} / span {N};">
-            <span>{f.label}</span>
-          </div>
-        {/if}
+        <!-- ラベルセル：先頭サブ行は f.label、各サブ行ラベルが直下に表示 -->
+        <div class="cell labelcell-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
+          {#if si === 0}
+            <span class="fixed-key">{f.label}</span>
+          {/if}
+          <input
+            type="text"
+            class="sub-label-input"
+            bind:value={block.固定行ラベル[f.key][si]}
+            oninput={onChange}
+            placeholder={si === 0 ? '自社' : (f.key === '人員' ? '外注' : 'リース')}
+            aria-label={`${f.label}${si+1}のサブ行ラベル`}
+          />
+        </div>
         {#each dates as d, i (d)}
           {@const e = getEntry(d, f.key, si)}
+          {@const subLabel = block.固定行ラベル[f.key][si] ?? ''}
+          {@const showSuffix = e.値 && subLabel && subLabel !== '自社'}
           <button
             class="cell day-cell {dayClass(d)}"
             style="grid-column: {i + 2}; grid-row: {startRow + si};"
@@ -336,7 +354,7 @@
             aria-label={`${d} ${f.label}${N > 1 ? si+1 : ''}`}
           >
             {#if e.値}
-              <span class="day-val" style="color: {kbnColor(e.区分)}">{e.値}</span>
+              <span class="day-val" style="color: {kbnColor(e.区分)}">{e.値}{showSuffix ? `(${subLabel})` : ''}</span>
             {/if}
           </button>
         {/each}
@@ -576,4 +594,37 @@
   .muted-cell.labelcell { min-height: 30px; }
   .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
   .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
+
+  .labelcell-fixed {
+    background: #f8f9fa;
+    border-right: 2px solid var(--c-border);
+    border-bottom: 1px solid var(--c-border);
+    min-height: 30px;
+    padding: 1px 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .labelcell-fixed .fixed-key {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-fg);
+    flex: 0 0 auto;
+  }
+  .sub-label-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 24px;
+    padding: 1px 4px;
+    font-size: 11px;
+    border: none;
+    background: transparent;
+    color: var(--c-fg);
+    width: 100%;
+  }
+  .sub-label-input:focus {
+    outline: 1px solid var(--c-accent);
+    border-radius: 3px;
+  }
+  .sub-label-input::placeholder { color: #cbd5e1; }
 </style>

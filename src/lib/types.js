@@ -47,9 +47,18 @@ import { uuid } from './utils/uuid.js';
  * @typedef {Object} 固定行数
  * @property {number} 人員
  * @property {number} 重機
- * @property {number} 回送   // 1固定
+ * @property {number} 回送
  * @property {number} 車両
  * @property {number} その他
+ */
+
+/**
+ * @typedef {Object} 固定行ラベル
+ * @property {string[]} 人員
+ * @property {string[]} 重機
+ * @property {string[]} 回送
+ * @property {string[]} 車両
+ * @property {string[]} その他
  */
 
 /**
@@ -59,6 +68,7 @@ import { uuid } from './utils/uuid.js';
  * @property {string} 職長名
  * @property {Band[]} バンド
  * @property {固定行数} 固定行数
+ * @property {固定行ラベル} 固定行ラベル
  * @property {Record<string, DayCell>} 日次セル
  */
 
@@ -100,7 +110,18 @@ export function emptyDayCell(kosu) {
 
 /** @returns {固定行数} */
 function defaultKosu() {
-  return { 人員: 1, 重機: 1, 回送: 1, 車両: 1, その他: 1 };
+  return { 人員: 2, 重機: 1, 回送: 1, 車両: 1, その他: 1 };
+}
+
+/** @returns {固定行ラベル} */
+function defaultLabels() {
+  return {
+    人員:   ['自社', '外注'],
+    重機:   ['自社'],
+    回送:   ['自社'],
+    車両:   ['自社'],
+    その他: ['自社']
+  };
 }
 
 /**
@@ -143,6 +164,7 @@ export function createKojiBlock(開始, 終了) {
       { ラベル: '作業2', 備考: '', バー: [] }
     ],
     固定行数: kosu,
+    固定行ラベル: defaultLabels(),
     日次セル: createEmptyDayCells(開始, 終了, kosu)
   };
 }
@@ -225,6 +247,20 @@ export function migrateKoutei(k) {
 
     // 固定行数
     if (!block.固定行数) block.固定行数 = defaultKosu();
+    // 固定行ラベル（既存データには無いので追補）
+    if (!block.固定行ラベル) block.固定行ラベル = defaultLabels();
+    // ラベル長を 固定行数 に合わせる
+    for (const k of /** @type {const} */ (['人員', '重機', '回送', '車両', 'その他'])) {
+      const target = block.固定行数[k];
+      const arr = block.固定行ラベル[k] ?? [];
+      const defaults = defaultLabels()[k];
+      while (arr.length < target) {
+        // 自社→外注/リース→...の順で足す
+        if (k === '人員') arr.push(arr.length === 0 ? '自社' : (arr.length === 1 ? '外注' : `外注${arr.length}`));
+        else arr.push(arr.length === 0 ? '自社' : (arr.length === 1 ? 'リース' : `リース${arr.length}`));
+      }
+      block.固定行ラベル[k] = arr.slice(0, target);
+    }
 
     // 日次セル: string→Array に変換
     for (const date of Object.keys(block.日次セル ?? {})) {
