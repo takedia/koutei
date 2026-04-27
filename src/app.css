@@ -1,0 +1,68 @@
+:root {
+  --c-bg: #ffffff;
+  --c-fg: #1a1a1a;
+  --c-muted: #6b7280;
+  --c-border: #d1d5db;
+  --c-accent: #1f6feb;
+  --c-accent-fg: #ffffff;
+  --c-holiday: #fff7d6;
+  --c-bar: #ffffff;
+  --c-rain: #a3bffa;
+  --c-bar-border: #1a1a1a;
+  --tap-min: 44px;
+  font-family: "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  color: var(--c-fg);
+  background: var(--c-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100dvh;
+  overscroll-behavior: none;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: 0 14px;
+  border: 1px solid var(--c-border);
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+button.primary {
+  background: var(--c-accent);
+  color: var(--c-accent-fg);
+  border-color: var(--c-accent);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+input, select, textarea {
+  font: inherit;
+  min-height: var(--tap-min);
+  padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+a {
+  color: var(--c-accent);
+}

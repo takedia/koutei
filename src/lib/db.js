@@ -1,0 +1,162 @@
+// IndexedDB 永続化層（idb-keyval ベース）
+// キー設計：
+//   koutei:{id}   ← 工程表本体
+//   index         ← 一覧用メタ配列（[{id, 工事名, 期間, 月, 更新}...]）
+//   settings      ← 設定オブジェクト
+//
+// 一覧画面の高速描画のため、本体とは別に index を持つ（誤差はほぼないが片方失敗時は再構築が必要）。
+
+import { get, set, del, keys } from 'idb-keyval';
+import { KOUSHU_DEFAULT } from './data/koushu.js';
+
+const PREFIX = 'koutei:';
+
+/**
+ * @typedef {Object} IndexEntry
+ * @property {string} id
+ * @property {string} 工事名表示    // 複数工事をまとめた表示名（"工事A 他1件" 等）
+ * @property {string} 月            // YYYY-MM
+ * @property {string} 期間表示      // "2026-04-22 - 05-05"
+ * @property {'2週'|'月間'} 提出種別
+ * @property {string} 最終更新      // ISO datetime
+ */
+
+/**
+ * 一覧を取得（更新日降順）
+ * @returns {Promise<IndexEntry[]>}
+ */
+export async function loadIndex() {
+  /** @type {IndexEntry[]} */
+  const idx = (await get('index')) ?? [];
+  return [...idx].sort((a, b) => (a.最終更新 < b.最終更新 ? 1 : -1));
+}
+
+/** 一覧を月別グルーピング */
+export async function loadIndexByMonth() {
+  const idx = await loadIndex();
+  /** @type {Map<string, IndexEntry[]>} */
+  const m = new Map();
+  for (const e of idx) {
+    const arr = m.get(e.月) ?? [];
+    arr.push(e);
+    m.set(e.月, arr);
+  }
+  return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+}
+
+/**
+ * 工程表本体取得
+ * @param {string} id
+ * @returns {Promise<import('./types.js').Koutei | undefined>}
+ */
+export async function loadKoutei(id) {
+  return get(PREFIX + id);
+}
+
+/**
+ * 保存（本体＋index 同時更新）
+ * Svelte 5 の $state プロキシも安全に保存できるよう JSON 経由でプレーン化する。
+ * @param {import('./types.js').Koutei} koutei
+ * @returns {Promise<import('./types.js').Koutei>}
+ */
+export async function saveKoutei(koutei) {
+  const plain = JSON.parse(JSON.stringify(koutei));
+  plain.meta.最終更新 = new Date().toISOString();
+  plain.meta.版数 = (plain.meta.版数 ?? 0) + 1;
+  await set(PREFIX + plain.id, plain);
+  await upsertIndex(plain);
+  return plain;
+}
+
+/**
+ * 削除
+ * @param {string} id
+ */
+export async function deleteKoutei(id) {
+  await del(PREFIX + id);
+  /** @type {IndexEntry[]} */
+  const idx = (await get('index')) ?? [];
+  await set('index', idx.filter(e => e.id !== id));
+}
+
+/**
+ * @param {import('./types.js').Koutei} koutei
+ */
+async function upsertIndex(koutei) {
+  /** @type {IndexEntry[]} */
+  const idx = (await get('index')) ?? [];
+  const names = koutei.工事ブロック
+    .map(b => b.工事名 || b.工事番号)
+    .filter(n => n);
+  const 工事名表示 = names.length === 0
+    ? '(無題)'
+    : names.length === 1
+      ? names[0]
+      : `${names[0]} 他${names.length - 1}件`;
+  const entry = {
+    id: koutei.id,
+    工事名表示,
+    月: koutei.meta.対象期間.開始.slice(0, 7),
+    期間表示: `${koutei.meta.対象期間.開始} - ${koutei.meta.対象期間.終了.slice(5)}`,
+    提出種別: koutei.meta.提出種別,
+    最終更新: koutei.meta.最終更新
+  };
+  const i = idx.findIndex(e => e.id === koutei.id);
+  if (i >= 0) idx[i] = entry; else idx.push(entry);
+  await set('index', idx);
+}
+
+/**
+ * インデックス再構築（壊れた時用）
+ */
+export async function rebuildIndex() {
+  const all = await keys();
+  /** @type {IndexEntry[]} */
+  const idx = [];
+  for (const k of all) {
+    if (typeof k !== 'string' || !k.startsWith(PREFIX)) continue;
+    const koutei = /** @type {import('./types.js').Koutei} */ (await get(k));
+    if (!koutei) continue;
+    const names = koutei.工事ブロック.map(b => b.工事名 || b.工事番号).filter(n => n);
+    idx.push({
+      id: koutei.id,
+      工事名表示: names.length === 0 ? '(無題)' : names.length === 1 ? names[0] : `${names[0]} 他${names.length - 1}件`,
+      月: koutei.meta.対象期間.開始.slice(0, 7),
+      期間表示: `${koutei.meta.対象期間.開始} - ${koutei.meta.対象期間.終了.slice(5)}`,
+      提出種別: koutei.meta.提出種別,
+      最終更新: koutei.meta.最終更新
+    });
+  }
+  await set('index', idx);
+  return idx.length;
+}
+
+// ───────────────────────── 設定 ─────────────────────────
+
+/** @returns {Promise<import('./types.js').設定>} */
+export async function loadSettings() {
+  const s = await get('settings');
+  if (s) return s;
+  const init = defaultSettings();
+  await set('settings', init);
+  return init;
+}
+
+/** @param {import('./types.js').設定} settings */
+export async function saveSettings(settings) {
+  await set('settings', settings);
+}
+
+/** @returns {import('./types.js').設定} */
+function defaultSettings() {
+  return {
+    PAT暗号化: null,
+    宛先プリセット: [],
+    工種辞書: [...KOUSHU_DEFAULT],
+    人員プリセット: [],
+    重機プリセット: ['0.7BH', '0.45BH', '0.25BH', 'ラフター25t', 'ラフター50t', '4tユニック'],
+    車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック'],
+    件名テンプレ: '[工程表] {工事番号} {期間}',
+    自分のリポ: null
+  };
+}
