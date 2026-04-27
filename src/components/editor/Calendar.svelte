@@ -355,10 +355,10 @@
       {@const startRow = fixedRowStart(f.key)}
       {@const N = block.固定行数[f.key]}
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
-        <!-- ラベルセル -->
-        {#if f.key === '人員'}
-          <div class="cell labelcell-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
-            {#if si === 0}<span class="fixed-key">{f.label}</span>{/if}
+        <!-- ラベルセル：左に項目名(32px固定)、右にサブ行ラベル(人員のみ) -->
+        <div class="cell label-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
+          <span class="key-text">{si === 0 ? f.label : ''}</span>
+          {#if f.key === '人員'}
             <input
               type="text"
               class="sub-label-input"
@@ -367,12 +367,8 @@
               placeholder={si === 0 ? '自社' : `外注${si > 1 ? si : ''}`}
               aria-label={`${f.label}${si+1}のサブ行ラベル`}
             />
-          </div>
-        {:else}
-          <div class="cell labelcell sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
-            {#if si === 0}<span class="key-only">{f.label}</span>{/if}
-          </div>
-        {/if}
+          {/if}
+        </div>
         {#each dates as d, i (d)}
           {@const e = getEntry(d, f.key, si)}
           {@const suffix = cellSuffix(f.key, e.区分)}
@@ -488,17 +484,13 @@
     font-weight: 600;
     border: none;
     background: transparent;
+    text-align: left;
   }
   .labelcell input:focus {
     outline: 1px solid var(--c-accent);
     border-radius: 3px;
   }
   .labelcell input::placeholder { color: #cbd5e1; }
-  .labelcell.muted-cell {
-    background: #f8f9fa;
-    align-items: center;
-  }
-  .labelcell.muted-cell span { font-weight: 600; }
 
   .band-cell {
     cursor: pointer;
@@ -631,28 +623,28 @@
   .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
   .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
 
-  .labelcell-fixed {
+  /* 固定行ラベル: 左に項目名(32px) + 右にサブラベル(可変)。全行・全項目で同じ列構造 */
+  .label-fixed {
     background: #f8f9fa;
     border-right: 2px solid var(--c-border);
     border-bottom: 1px solid var(--c-border);
     min-height: 30px;
-    padding: 1px 4px;
-    display: flex;
+    padding: 0 4px;
+    display: grid;
+    grid-template-columns: 32px 1fr;
     align-items: center;
-    gap: 4px;
+    column-gap: 2px;
   }
-  .labelcell-fixed .fixed-key {
+  .label-fixed .key-text {
     font-size: 11px;
     font-weight: 700;
     color: var(--c-fg);
-    flex: 0 0 auto;
-  }
-  .key-only {
-    font-size: 12px;
-    font-weight: 600;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .sub-label-input {
-    flex: 1;
     min-width: 0;
     min-height: 24px;
     padding: 1px 4px;
@@ -661,6 +653,7 @@
     background: transparent;
     color: var(--c-fg);
     width: 100%;
+    text-align: left;
   }
   .sub-label-input:focus {
     outline: 1px solid var(--c-accent);

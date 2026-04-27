@@ -42,6 +42,10 @@
   let cellEditorCb = $state(() => {});
 
   onMount(async () => {
+    // ExcelJS を先読み：ボタン押下時の await を最小化し、
+    // ブラウザの user-gesture コンテキスト切れによるダウンロードブロックを回避
+    import('exceljs').catch(() => {});
+
     const id = get(editingId);
     if (!id) {
       screen.set('home');
