@@ -212,6 +212,17 @@
     return block.日次セル[date]?.[key]?.[idx] ?? { 値: '', 区分: '自社' };
   }
 
+  /** 人員サブ行の合計（数値のみ加算） */
+  function sumPerson(/** @type {number} */ si) {
+    let sum = 0;
+    for (const d of dates) {
+      const v = block.日次セル[d]?.人員?.[si]?.値;
+      const n = Number(v);
+      if (!isNaN(n) && v !== '') sum += n;
+    }
+    return sum;
+  }
+
   /** バーの日数列の grid-column インデックス（1=ラベル列を含めて2始まり） */
   function colIdxOf(/** @type {string} */ date) {
     const i = dates.indexOf(date);
@@ -379,7 +390,12 @@
           </button>
         {/each}
         <div class="cell remark muted-cell" style="grid-column: {dates.length + 2}; grid-row: {startRow + si};"></div>
-        <div class="cell total muted-cell" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
+        <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};">
+          {#if f.key === '人員'}
+            {@const s = sumPerson(si)}
+            {s > 0 ? s : ''}
+          {/if}
+        </div>
       {/each}
 
       {#if f.多}
