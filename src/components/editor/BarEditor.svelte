@@ -44,16 +44,6 @@
     else map[d] = s;
     local.日別 = map;
   }
-  /** @param {'全日'|'AM'|'PM'} s */
-  function setAll(s) {
-    if (!local) return;
-    const map = { ...(local.日別 ?? {}) };
-    for (const d of days) {
-      if (s === '全日') delete map[d];
-      else map[d] = s;
-    }
-    local.日別 = map;
-  }
 
   let days = $derived(local ? dateRange(local.開始, local.終了) : []);
   let hours = $derived(local ? calcBarHours(local) : 0);
@@ -81,17 +71,6 @@
         <div class="period">
           {formatYMD(local.開始)} 〜 {formatYMD(local.終了)} ({days.length}日)
         </div>
-
-        {#if days.length > 1}
-          <div class="all-row">
-            <span class="lab">一括</span>
-            <div class="seg3">
-              <button onclick={() => setAll('全日')}>全日</button>
-              <button onclick={() => setAll('AM')}>AM</button>
-              <button onclick={() => setAll('PM')}>PM</button>
-            </div>
-          </div>
-        {/if}
 
         <div class="day-list">
           {#each days as d (d)}
@@ -152,12 +131,6 @@
   label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--c-muted); }
   label input { color: var(--c-fg); }
   .period { font-size: 14px; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; }
-  .all-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-  .lab { font-size: 13px; color: var(--c-muted); width: 48px; }
   .seg3 {
     display: flex;
     gap: 4px;

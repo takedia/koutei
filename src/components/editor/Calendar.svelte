@@ -121,7 +121,7 @@
   }
   function removeBand() {
     if (block.バンド.length <= 1) return;
-    if (!confirm('最後の項目を削除します。バーや補足も消えます。よろしいですか？')) return;
+    if (!confirm('最後の列を削除します。バーや備考も消えます。よろしいですか？')) return;
     block.バンド.pop();
     block.バンド = block.バンド;
     onChange();
@@ -301,12 +301,12 @@
       {/each}
     {/each}
 
-    <!-- ＋/-項目行 -->
+    <!-- ＋/-列の行 -->
     <div class="cell labelcell sticky-l ctrl-row" style="grid-column: 1; grid-row: {ctrlRow};">
       <div class="ctrls">
-        <button class="mini" onclick={addBand}>＋項目</button>
+        <button class="mini" onclick={addBand}>＋列追加</button>
         {#if block.バンド.length > 1}
-          <button class="mini" onclick={removeBand}>−項目</button>
+          <button class="mini" onclick={removeBand}>−列削除</button>
         {/if}
       </div>
     </div>
