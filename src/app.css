@@ -66,3 +66,9 @@ input, select, textarea {
 a {
   color: var(--c-accent);
 }
+
+/* 画像/PDF 出力時にカレンダーの +/-項目行 を非表示にする */
+.printing .ctrl-row,
+.printing .ctrl-row-fixed {
+  display: none !important;
+}

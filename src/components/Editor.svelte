@@ -15,9 +15,16 @@
   import { exportElementAsPng } from '../lib/export/png.js';
   import { exportElementAsPdf } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
+  import ExportPreview from './ExportPreview.svelte';
 
   /** @type {HTMLDivElement | null} */
   let calendarRoot = $state(null);
+
+  // プレビュー状態
+  let previewOpen = $state(false);
+  let previewKind = $state(/** @type {'png'|'pdf'|null} */ (null));
+  let previewBlob = $state(/** @type {Blob|null} */ (null));
+  let previewFilename = $state('');
 
   /** @type {import('../lib/types.js').Koutei | null} */
   let koutei = $state(null);
@@ -254,6 +261,19 @@
     return calendarRoot?.querySelector('.cal') ?? calendarRoot;
   }
 
+  /** 出力時に +/-項目 行を一時的に隠す */
+  async function withPrintingClass(/** @type {() => Promise<any>} */ fn) {
+    if (!calendarRoot) return fn();
+    calendarRoot.classList.add('printing');
+    // 1フレーム待ってレイアウトを確定
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    try {
+      return await fn();
+    } finally {
+      calendarRoot.classList.remove('printing');
+    }
+  }
+
   async function onExportPng() {
     if (!koutei) return;
     try {
@@ -264,9 +284,13 @@
         return;
       }
       toasts.info('画像生成中…');
-      const blob = await exportElementAsPng(/** @type {HTMLElement} */ (target));
-      downloadBlob(blob, makeFilename(koutei, 'png'));
-      toasts.info('画像をダウンロードしました');
+      const blob = await withPrintingClass(() =>
+        exportElementAsPng(/** @type {HTMLElement} */ (target))
+      );
+      previewKind = 'png';
+      previewBlob = blob;
+      previewFilename = makeFilename(koutei, 'png');
+      previewOpen = true;
     } catch (e) {
       console.error(e);
       toasts.error('出力失敗: ' + (e?.message ?? e));
@@ -283,13 +307,29 @@
         return;
       }
       toasts.info('PDF生成中…');
-      const blob = await exportElementAsPdf(/** @type {HTMLElement} */ (target));
-      downloadBlob(blob, makeFilename(koutei, 'pdf'));
-      toasts.info('PDFをダウンロードしました');
+      const blob = await withPrintingClass(() =>
+        exportElementAsPdf(/** @type {HTMLElement} */ (target))
+      );
+      previewKind = 'pdf';
+      previewBlob = blob;
+      previewFilename = makeFilename(koutei, 'pdf');
+      previewOpen = true;
     } catch (e) {
       console.error(e);
       toasts.error('出力失敗: ' + (e?.message ?? e));
     }
+  }
+
+  function previewDownload() {
+    if (!previewBlob || !previewFilename) return;
+    downloadBlob(previewBlob, previewFilename);
+    previewOpen = false;
+    previewBlob = null;
+    toasts.info('ダウンロードしました');
+  }
+  function previewClose() {
+    previewOpen = false;
+    previewBlob = null;
   }
 </script>
 
@@ -375,6 +415,15 @@
   numericOnly={cellEditorNumericOnly}
   onSave={cellEditorCb}
   onCancel={() => cellEditorOpen = false}
+/>
+
+<ExportPreview
+  open={previewOpen}
+  kind={previewKind}
+  blob={previewBlob}
+  filename={previewFilename}
+  onDownload={previewDownload}
+  onCancel={previewClose}
 />
 
 <style>
