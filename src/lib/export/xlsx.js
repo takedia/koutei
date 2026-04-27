@@ -86,8 +86,9 @@ export async function exportKouteiAsXlsx(koutei) {
 
   // ──── 行1: タイトル
   let r = 1;
+  const periodLabel = koutei.meta.提出種別 === '2週' ? '2週間' : koutei.meta.提出種別;
   const titleCell = ws.getCell(r, 1);
-  titleCell.value = `工程表（${koutei.meta.提出種別}）　${koutei.meta.対象期間.開始} 〜 ${koutei.meta.対象期間.終了}`;
+  titleCell.value = `工程表（${periodLabel}）　${koutei.meta.対象期間.開始} 〜 ${koutei.meta.対象期間.終了}`;
   titleCell.font = { bold: true, size: 14 };
   titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
   ws.mergeCells(r, 1, r, TOTAL_COLS);
