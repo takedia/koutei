@@ -69,7 +69,7 @@ export async function exportKouteiAsXlsx(koutei) {
 
   // 列幅（固定）
   const dayWidth = N <= 16 ? 8 : 5;
-  ws.getColumn(COL_KEY).width = 5;
+  ws.getColumn(COL_KEY).width = 7;
   ws.getColumn(COL_SUBLABEL).width = 10;
   for (let i = 0; i < N; i++) ws.getColumn(COL_DATE_START + i).width = dayWidth;
   ws.getColumn(COL_REMARK).width = 18;
