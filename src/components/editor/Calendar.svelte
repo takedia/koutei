@@ -209,7 +209,7 @@
       --lw: {LABEL_WIDTH}px;
       --rw: {REMARK_WIDTH}px;
       --tw: {TOTAL_WIDTH}px;
-      grid-template-columns: var(--lw) repeat({dates.length}, var(--cw)) var(--rw) var(--tw);
+      grid-template-columns: var(--lw) repeat({dates.length}, minmax(var(--cw), max-content)) var(--rw) var(--tw);
     "
   >
     <!-- 行1: ヘッダ -->
@@ -279,7 +279,7 @@
               aria-label={`バー: ${bar.ラベル}`}
             >
               {#if di === 0}
-                <span class="bar-content">
+                <span class="bar-label-block">
                   <span class="bar-main">{bar.ラベル}</span>
                   {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
                 </span>
@@ -447,7 +447,7 @@
     box-shadow: inset 0 0 0 2px #f59e0b;
   }
 
-  /* バー（per-day セグメント） */
+  /* バー（per-day セグメント・通常フローでセル幅に寄与） */
   .bar-seg {
     align-self: center;
     min-height: 32px;
@@ -457,9 +457,12 @@
     cursor: pointer;
     z-index: 2;
     position: relative;
-    padding: 0;
+    padding: 2px 4px;
     text-align: left;
-    overflow: visible;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
   }
   .bar-seg.全日 { justify-self: stretch; }
   .bar-seg.am   { justify-self: start; width: 50%; }
@@ -472,16 +475,13 @@
     border-color: #6b7280;
     color: #6b7280;
   }
-  .bar-content {
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    transform: translateY(-50%);
+  .bar-label-block {
     display: flex;
     flex-direction: column;
     line-height: 1.1;
-    pointer-events: none;
     white-space: nowrap;
+    pointer-events: none;
+    flex: 0 0 auto;
   }
   .bar-main {
     font-weight: 600;
@@ -492,15 +492,14 @@
     color: var(--c-muted);
   }
   .bar-h {
-    position: absolute;
-    right: 4px;
-    bottom: 1px;
+    margin-left: auto;
     font-size: 9px;
     color: var(--c-muted);
     background: rgba(255,255,255,0.85);
     padding: 0 2px;
     border-radius: 2px;
     pointer-events: none;
+    flex: 0 0 auto;
   }
 
   .remark { padding: 2px 4px; }
