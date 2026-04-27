@@ -12,7 +12,12 @@
   import BarEditor from './editor/BarEditor.svelte';
   import CellEditor from './editor/CellEditor.svelte';
   import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
+  import { exportElementAsPng } from '../lib/export/png.js';
+  import { exportElementAsPdf } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
+
+  /** @type {HTMLDivElement | null} */
+  let calendarRoot = $state(null);
 
   /** @type {import('../lib/types.js').Koutei | null} */
   let koutei = $state(null);
@@ -234,11 +239,53 @@
   async function onExportXlsx() {
     if (!koutei) return;
     try {
-      // 出力前に必ず保存（最新状態で出力）
       if (dirty) await save();
       const blob = await exportKouteiAsXlsx(koutei);
       downloadBlob(blob, makeFilename(koutei, 'xlsx'));
       toasts.info('Excelをダウンロードしました');
+    } catch (e) {
+      console.error(e);
+      toasts.error('出力失敗: ' + (e?.message ?? e));
+    }
+  }
+
+  /** カレンダー本体の DOM 要素（.cal）を取得 */
+  function getCaptureTarget() {
+    return calendarRoot?.querySelector('.cal') ?? calendarRoot;
+  }
+
+  async function onExportPng() {
+    if (!koutei) return;
+    try {
+      if (dirty) await save();
+      const target = getCaptureTarget();
+      if (!target) {
+        toasts.error('画面要素が見つかりませんでした');
+        return;
+      }
+      toasts.info('画像生成中…');
+      const blob = await exportElementAsPng(/** @type {HTMLElement} */ (target));
+      downloadBlob(blob, makeFilename(koutei, 'png'));
+      toasts.info('画像をダウンロードしました');
+    } catch (e) {
+      console.error(e);
+      toasts.error('出力失敗: ' + (e?.message ?? e));
+    }
+  }
+
+  async function onExportPdf() {
+    if (!koutei) return;
+    try {
+      if (dirty) await save();
+      const target = getCaptureTarget();
+      if (!target) {
+        toasts.error('画面要素が見つかりませんでした');
+        return;
+      }
+      toasts.info('PDF生成中…');
+      const blob = await exportElementAsPdf(/** @type {HTMLElement} */ (target));
+      downloadBlob(blob, makeFilename(koutei, 'pdf'));
+      toasts.info('PDFをダウンロードしました');
     } catch (e) {
       console.error(e);
       toasts.error('出力失敗: ' + (e?.message ?? e));
@@ -282,18 +329,24 @@
   </section>
 
   <main>
-    <Calendar
-      {block}
-      periodStart={koutei.meta.対象期間.開始}
-      periodEnd={koutei.meta.対象期間.終了}
-      onChange={markDirty}
-      onPickKoushu={openPicker}
-      onEditBar={openBarEditor}
-      onEditCell={openCellEditor}
-    />
+    <div bind:this={calendarRoot}>
+      <Calendar
+        {block}
+        periodStart={koutei.meta.対象期間.開始}
+        periodEnd={koutei.meta.対象期間.終了}
+        onChange={markDirty}
+        onPickKoushu={openPicker}
+        onEditBar={openBarEditor}
+        onEditCell={openCellEditor}
+      />
+    </div>
     <div class="footer-actions">
       <button onclick={copyPrevWeek}>🔁 前週コピー</button>
-      <button class="primary" onclick={onExportXlsx}>📊 Excel出力</button>
+    </div>
+    <div class="export-actions">
+      <button class="primary" onclick={onExportXlsx}>📊 Excel</button>
+      <button class="primary" onclick={onExportPng}>🖼 画像</button>
+      <button class="primary" onclick={onExportPdf}>📄 PDF</button>
     </div>
   </main>
 {/if}
@@ -436,13 +489,17 @@
     color: var(--c-muted);
     margin: 24px;
   }
-  .footer-actions {
+  .footer-actions, .export-actions {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .footer-actions button {
+  .footer-actions button, .export-actions button {
     flex: 1;
     min-height: 44px;
+  }
+  .export-actions {
+    border-top: 1px solid var(--c-border);
+    padding-top: 8px;
   }
 </style>
