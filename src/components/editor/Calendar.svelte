@@ -279,10 +279,18 @@
               aria-label={`バー: ${bar.ラベル}`}
             >
               {#if di === 0}
-                <span class="bar-label-block">
+                <!-- 視覚: 絶対配置でバー全体を横断して表示できる -->
+                <span class="bar-label-overlay">
                   <span class="bar-main">{bar.ラベル}</span>
                   {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
                 </span>
+                <!-- 単日のときは通常フローのスペーサーで列を広げる -->
+                {#if days.length === 1}
+                  <span class="bar-label-spacer" aria-hidden="true">
+                    <span class="bar-main">{bar.ラベル}</span>
+                    {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
+                  </span>
+                {/if}
               {/if}
               {#if di === days.length - 1}
                 <span class="bar-h">{calcBarHours(bar)}h</span>
@@ -447,7 +455,7 @@
     box-shadow: inset 0 0 0 2px #f59e0b;
   }
 
-  /* バー（per-day セグメント・通常フローでセル幅に寄与） */
+  /* バー（per-day セグメント） */
   .bar-seg {
     align-self: center;
     min-height: 32px;
@@ -462,8 +470,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    overflow: hidden;
+    overflow: visible;
   }
+  .bar-seg.is-first { z-index: 3; }   /* オーバーレイ・ラベルを上に */
   .bar-seg.全日 { justify-self: stretch; }
   .bar-seg.am   { justify-self: start; width: 50%; }
   .bar-seg.pm   { justify-self: end;   width: 50%; }
@@ -475,7 +484,22 @@
     border-color: #6b7280;
     color: #6b7280;
   }
-  .bar-label-block {
+  /* マルチ日: 絶対配置で範囲一杯まで表示 */
+  .bar-label-overlay {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 4;
+  }
+  /* 単日: 通常フローでセル幅を広げる */
+  .bar-label-spacer {
+    visibility: hidden;
     display: flex;
     flex-direction: column;
     line-height: 1.1;
@@ -500,6 +524,8 @@
     border-radius: 2px;
     pointer-events: none;
     flex: 0 0 auto;
+    z-index: 5;
+    position: relative;
   }
 
   .remark { padding: 2px 4px; }
