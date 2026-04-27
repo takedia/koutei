@@ -11,6 +11,8 @@
   import KoushuPicker from './editor/KoushuPicker.svelte';
   import BarEditor from './editor/BarEditor.svelte';
   import CellEditor from './editor/CellEditor.svelte';
+  import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
+  import { makeFilename, downloadBlob } from '../lib/export/filename.js';
 
   /** @type {import('../lib/types.js').Koutei | null} */
   let koutei = $state(null);
@@ -222,6 +224,20 @@
       ? block.バンド[barEditorBandIdx]?.バー[barEditorBarIdx] ?? null
       : null
   );
+
+  async function onExportXlsx() {
+    if (!koutei) return;
+    try {
+      // 出力前に必ず保存（最新状態で出力）
+      if (dirty) await save();
+      const blob = await exportKouteiAsXlsx(koutei);
+      downloadBlob(blob, makeFilename(koutei, 'xlsx'));
+      toasts.info('Excelをダウンロードしました');
+    } catch (e) {
+      console.error(e);
+      toasts.error('出力失敗: ' + (e?.message ?? e));
+    }
+  }
 </script>
 
 <header>
@@ -271,6 +287,7 @@
     />
     <div class="footer-actions">
       <button onclick={copyPrevWeek}>🔁 前週コピー</button>
+      <button class="primary" onclick={onExportXlsx}>📊 Excel出力</button>
     </div>
   </main>
 {/if}
