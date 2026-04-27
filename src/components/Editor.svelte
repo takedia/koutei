@@ -237,8 +237,8 @@
 {:else}
   <section class="meta-row">
     <input class="ipt" type="text" bind:value={koutei.meta.発注者} oninput={markDirty} placeholder="発注者" aria-label="発注者" />
-    <input class="ipt flex" type="text" bind:value={block.工事名} oninput={markDirty} placeholder="工事名" aria-label="工事名" />
     <input class="ipt num" type="text" bind:value={block.工事番号} oninput={markDirty} placeholder="工事番号" aria-label="工事番号" />
+    <input class="ipt flex" type="text" bind:value={block.工事名} oninput={markDirty} placeholder="工事名" aria-label="工事名" />
     <input class="ipt" type="text" bind:value={block.職長名} oninput={markDirty} placeholder="職長名" aria-label="職長名" />
   </section>
 

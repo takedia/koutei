@@ -14,7 +14,6 @@
   /** @type {import('../../lib/types.js').Bar | null} */
   let local = $state(null);
 
-  // open になった瞬間に bar の内容で local を初期化
   $effect(() => {
     if (open && bar) {
       local = JSON.parse(JSON.stringify(bar));
@@ -30,7 +29,33 @@
     onDelete();
   }
 
+  /**
+   * @returns {'全日'|'AM'|'PM'}
+   */
+  function getMode() {
+    if (!local) return '全日';
+    if (local.始点位置 === 'AM') return 'AM';
+    if (local.終点位置 === 'PM') return 'PM';
+    return '全日';
+  }
+
+  /** @param {'全日'|'AM'|'PM'} m */
+  function setMode(m) {
+    if (!local) return;
+    if (m === '全日') {
+      local.始点位置 = '全日';
+      local.終点位置 = '全日';
+    } else if (m === 'AM') {
+      local.始点位置 = 'AM';
+      local.終点位置 = '全日';
+    } else {
+      local.始点位置 = '全日';
+      local.終点位置 = 'PM';
+    }
+  }
+
   let hours = $derived(local ? calcBarHours(local) : 0);
+  let mode = $derived(getMode());
 </script>
 
 {#if open && local}
@@ -56,17 +81,10 @@
           {formatYMD(local.開始)} 〜 {formatYMD(local.終了)}
         </div>
 
-        <div class="grid">
-          <div class="lab">始日</div>
-          <div class="seg">
-            <button class:on={local.始点位置 === '全日'} onclick={() => local.始点位置 = '全日'}>全日 8h</button>
-            <button class:on={local.始点位置 === 'AM'} onclick={() => local.始点位置 = 'AM'}>PM始まり 4h</button>
-          </div>
-          <div class="lab">終日</div>
-          <div class="seg">
-            <button class:on={local.終点位置 === '全日'} onclick={() => local.終点位置 = '全日'}>全日 8h</button>
-            <button class:on={local.終点位置 === 'PM'} onclick={() => local.終点位置 = 'PM'}>AM終わり 4h</button>
-          </div>
+        <div class="seg3">
+          <button class:on={mode === '全日'} onclick={() => setMode('全日')}>全日 8h</button>
+          <button class:on={mode === 'AM'}   onclick={() => setMode('AM')}>AM 4h</button>
+          <button class:on={mode === 'PM'}   onclick={() => setMode('PM')}>PM 4h</button>
         </div>
 
         <div class="toggles">
@@ -88,14 +106,7 @@
 {/if}
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-  }
+  .backdrop { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; justify-content: flex-end; }
   .bg { position: absolute; inset: 0; background: rgba(0,0,0,0.4); border: none; }
   .sheet {
     position: relative;
@@ -121,11 +132,21 @@
   label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--c-muted); }
   label input { color: var(--c-fg); }
   .period { font-size: 14px; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; }
-  .grid { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 6px 10px; }
-  .lab { font-size: 13px; color: var(--c-muted); }
-  .seg { display: flex; gap: 4px; }
-  .seg button { flex: 1; padding: 0 10px; min-height: 40px; background: #f9fafb; }
-  .seg button.on { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+  .seg3 {
+    display: flex;
+    gap: 4px;
+  }
+  .seg3 button {
+    flex: 1;
+    min-height: 44px;
+    background: #f9fafb;
+    font-weight: 600;
+  }
+  .seg3 button.on {
+    background: var(--c-accent);
+    color: #fff;
+    border-color: var(--c-accent);
+  }
   .toggles { display: flex; gap: 14px; }
   .chk { flex-direction: row; align-items: center; gap: 6px; color: var(--c-fg); font-size: 14px; }
   .chk input { min-height: 22px; width: 22px; height: 22px; }

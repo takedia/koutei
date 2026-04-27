@@ -46,6 +46,9 @@
         block.バンド[bandIdx].バー.push(bar);
         block.バンド = block.バンド;
         onChange();
+        // 作成直後にバー編集を開く（時間／補足を即設定できるように）
+        const newBarIdx = block.バンド[bandIdx].バー.length - 1;
+        onEditBar(bandIdx, newBarIdx);
       });
     } else {
       pendingStart = { band: bandIdx, date };
@@ -146,7 +149,8 @@
     let row = fixedStartRow;
     for (const f of FIXED_KEYS) {
       if (f.key === key) return row;
-      row += block.固定行数[f.key] + 1; // +1 は +/-行
+      // ＋/-行を持たない（多=false）固定行（回送）はctrl行を出さない
+      row += block.固定行数[f.key] + (f.多 ? 1 : 0);
     }
     return row;
   }
@@ -284,23 +288,23 @@
         <div class="cell total muted-cell" style="grid-row: {startRow + si};"></div>
       {/each}
 
-      <!-- +/-行（回送以外） -->
-      {@const ctrlRowOfThisFixed = startRow + N}
-      <div class="cell labelcell sticky-l ctrl-row muted-cell" style="grid-row: {ctrlRowOfThisFixed};">
-        {#if f.多}
+      <!-- +/-行（多=true のときのみ） -->
+      {#if f.多}
+        {@const ctrlRowOfThisFixed = startRow + N}
+        <div class="cell labelcell sticky-l ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};">
           <div class="ctrls">
             <button class="mini" onclick={() => addFixed(f.key)}>＋{f.label}</button>
             {#if N > 1}
               <button class="mini" onclick={() => removeFixed(f.key)}>−{f.label}</button>
             {/if}
           </div>
-        {/if}
-      </div>
-      {#each dates as d (d)}
-        <div class="cell ctrl-row muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
-      {/each}
-      <div class="cell ctrl-row muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
-      <div class="cell ctrl-row muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+        </div>
+        {#each dates as d (d)}
+          <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+        {/each}
+        <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+        <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+      {/if}
     {/each}
   </div>
 </div>
@@ -499,14 +503,21 @@
     padding: 0 6px;
   }
 
-  /* 固定行 */
+  /* 固定行を細く */
   .day-cell {
     cursor: pointer;
+    min-height: 30px;
   }
   .day-cell:disabled {
     background: #f3f4f6;
     cursor: not-allowed;
   }
+  .muted-cell { min-height: 30px; }
+  .muted-cell.labelcell { min-height: 30px; }
+  .muted-cell.labelcell input { min-height: 26px; }
+  .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
+  .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
+  .ctrl-row-fixed .ctrls { display: flex; gap: 4px; align-items: center; }
   .day-cell.holiday:disabled { background: #f5e7c2; }
   .day-val {
     font-size: 11px;

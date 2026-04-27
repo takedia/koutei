@@ -135,13 +135,27 @@ export async function rebuildIndex() {
 
 // ───────────────────────── 設定 ─────────────────────────
 
+const REQUIRED_VEHICLE = ['10tセルフ', '20tセルフ', '特車'];
+
 /** @returns {Promise<import('./types.js').設定>} */
 export async function loadSettings() {
-  const s = await get('settings');
-  if (s) return s;
-  const init = defaultSettings();
-  await set('settings', init);
-  return init;
+  let s = await get('settings');
+  if (!s) {
+    s = defaultSettings();
+    await set('settings', s);
+    return s;
+  }
+  // 既存設定にも必須プリセットを追補（重複は加えない）
+  let mutated = false;
+  if (!Array.isArray(s.車両プリセット)) s.車両プリセット = [];
+  for (const v of REQUIRED_VEHICLE) {
+    if (!s.車両プリセット.includes(v)) {
+      s.車両プリセット.push(v);
+      mutated = true;
+    }
+  }
+  if (mutated) await set('settings', s);
+  return s;
 }
 
 /** @param {import('./types.js').設定} settings */
@@ -156,7 +170,7 @@ function defaultSettings() {
     宛先プリセット: [],
     工種辞書: [...KOUSHU_DEFAULT],
     重機プリセット: ['0.7BH', '0.45BH', '0.25BH', 'ラフター25t', 'ラフター50t', '4tユニック'],
-    車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック'],
+    車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック', '10tセルフ', '20tセルフ', '特車'],
     件名テンプレ: '[工程表] {工事番号} {期間}',
     自分のリポ: null
   };
