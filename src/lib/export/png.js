@@ -14,22 +14,27 @@ export async function exportElementAsPng(targetEl, opts = {}) {
     try { await document.fonts.ready; } catch {}
   }
 
-  const scale = opts.scale ?? 2;
+  // モバイルは描画負荷が大きいので解像度控えめ（フリーズ対策）
+  const isMobile = typeof navigator !== 'undefined' &&
+    /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
+  const scale = opts.scale ?? (isMobile ? 1 : 1.5);
 
   const canvas = await html2canvas(targetEl, {
     backgroundColor: '#ffffff',
     scale,
     useCORS: true,
     logging: false,
-    // 横スクロールも含めて全体を描画
     width: targetEl.scrollWidth,
     height: targetEl.scrollHeight,
     windowWidth: targetEl.scrollWidth,
     windowHeight: targetEl.scrollHeight
   });
 
+  // canvas.toBlob はタイムアウトを付けて確実に完了/失敗させる
   return await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('PNG生成タイムアウト')), 30000);
     canvas.toBlob(blob => {
+      clearTimeout(timer);
       if (blob) resolve(blob);
       else reject(new Error('PNG生成に失敗しました'));
     }, 'image/png');

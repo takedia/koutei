@@ -13,9 +13,13 @@ export async function exportElementAsPdf(targetEl) {
     try { await document.fonts.ready; } catch {}
   }
 
+  const isMobile = typeof navigator !== 'undefined' &&
+    /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
+  const scale = isMobile ? 1 : 1.5;
+
   const canvas = await html2canvas(targetEl, {
     backgroundColor: '#ffffff',
-    scale: 2,
+    scale,
     useCORS: true,
     logging: false,
     width: targetEl.scrollWidth,
@@ -24,7 +28,8 @@ export async function exportElementAsPdf(targetEl) {
     windowHeight: targetEl.scrollHeight
   });
 
-  const imgData = canvas.toDataURL('image/png');
+  // jpeg にして PDF サイズも軽減
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
   const pdf = new jsPDF({
     orientation: 'landscape',
@@ -54,7 +59,7 @@ export async function exportElementAsPdf(targetEl) {
   const x = (pdfW - w) / 2;
   const y = (pdfH - h) / 2;
 
-  pdf.addImage(imgData, 'PNG', x, y, w, h);
+  pdf.addImage(imgData, 'JPEG', x, y, w, h);
 
   return pdf.output('blob');
 }

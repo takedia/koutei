@@ -3,7 +3,7 @@
   import { get } from 'svelte/store';
   import dayjs from 'dayjs';
   import { loadKoutei, saveKoutei } from '../lib/db.js';
-  import { editingId, screen, toasts } from '../lib/stores.js';
+  import { editingId, draftKoutei, screen, toasts } from '../lib/stores.js';
   import { formatRange, addDays } from '../lib/utils/date.js';
   import { rebuildDayCells } from '../lib/types.js';
   import { blockTotalHours } from '../lib/utils/bars.js';
@@ -55,8 +55,7 @@
   let cellEditorCb = $state(() => {});
 
   onMount(async () => {
-    // ExcelJS を先読み：ボタン押下時の await を最小化し、
-    // ブラウザの user-gesture コンテキスト切れによるダウンロードブロックを回避
+    // ExcelJS を先読み（ダウンロード時の await 短縮）
     import('exceljs').catch(() => {});
 
     const id = get(editingId);
@@ -64,6 +63,16 @@
       screen.set('home');
       return;
     }
+    // 1) まずドラフト（新規作成直後）を確認
+    const draft = get(draftKoutei);
+    if (draft && draft.id === id) {
+      koutei = draft;
+      draftKoutei.set(null);   // consume
+      dirty = false;
+      loading = false;
+      return;
+    }
+    // 2) DB から読み込み
     const loaded = await loadKoutei(id);
     if (!loaded) {
       toasts.error('工程表が見つかりませんでした');

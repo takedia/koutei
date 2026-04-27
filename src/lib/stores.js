@@ -13,6 +13,13 @@ export const screen = writable(/** @type {'home'|'editor'|'settings'|'preview'} 
 export const editingId = writable(/** @type {string|null} */ (null));
 
 /**
+ * 「新規」で作成した未保存の工程表（メモリのみ）。
+ * 保存ボタンが押されるまで DB にも index にも入らない。
+ * 編集画面はまずこちらを参照、なければ DB から読み込む。
+ */
+export const draftKoutei = writable(/** @type {import('./types.js').Koutei|null} */ (null));
+
+/**
  * トースト通知
  */
 function createToasts() {

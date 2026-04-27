@@ -2,8 +2,7 @@
   import { onMount } from 'svelte';
   import { loadIndexByMonth, deleteKoutei } from '../lib/db.js';
   import { createKoutei } from '../lib/types.js';
-  import { saveKoutei } from '../lib/db.js';
-  import { screen, editingId, toasts } from '../lib/stores.js';
+  import { screen, editingId, draftKoutei, toasts } from '../lib/stores.js';
   import { formatRange } from '../lib/utils/date.js';
 
   /** @type {[string, import('../lib/db.js').IndexEntry[]][]} */
@@ -20,7 +19,8 @@
 
   async function newKoutei() {
     const k = createKoutei({ 提出種別: '2週' });
-    await saveKoutei(k);
+    // ドラフトとしてメモリ保持。保存ボタンが押されるまで DB に書かない
+    draftKoutei.set(k);
     editingId.set(k.id);
     screen.set('editor');
   }
