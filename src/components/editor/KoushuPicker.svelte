@@ -66,11 +66,6 @@
       </header>
 
       <div class="list">
-        <button class="kyuko" onclick={pickKyuko}>
-          <span class="kyuko-mark">休</span>
-          <span>休工（雨天・休日）</span>
-        </button>
-
         {#each KOUSHU_CATEGORIES as cat (cat.name)}
           {@const items = filter(query, cat.items)}
           {#if items.length}
@@ -95,19 +90,19 @@
           {/if}
         {/if}
 
-        <div class="search">
-          <h3>検索 / 新規追加</h3>
-          <div class="search-row">
-            <!-- svelte-ignore a11y_autofocus -->
-            <input
-              type="search"
-              placeholder="工種名を入力"
-              bind:value={query}
-            />
-            {#if query.trim() && !flatDefault().includes(query.trim()) && !custom.includes(query.trim())}
-              <button class="primary add" onclick={addCustom}>＋追加して使う</button>
-            {/if}
-          </div>
+        <h3>休工</h3>
+        <button class="kyuko" onclick={pickKyuko}>
+          <span class="kyuko-mark">休</span>
+          <span>休工（雨天・休日）</span>
+        </button>
+
+        <h3>検索 / 新規追加</h3>
+        <div class="search-row">
+          <!-- svelte-ignore a11y_autofocus -->
+          <input type="search" placeholder="工種名を入力" bind:value={query} />
+          {#if query.trim() && !flatDefault().includes(query.trim()) && !custom.includes(query.trim())}
+            <button class="primary add" onclick={addCustom}>＋追加して使う</button>
+          {/if}
         </div>
       </div>
     </div>
@@ -160,30 +155,6 @@
     overflow: auto;
     padding: 12px 14px 24px;
   }
-  .kyuko {
-    width: 100%;
-    background: #fef2f2;
-    border: 1px solid #fca5a5;
-    color: #991b1b;
-    padding: 12px 14px;
-    border-radius: 8px;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .kyuko-mark {
-    background: #b91c1c;
-    color: #fff;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-  }
   h3 {
     font-size: 12px;
     color: var(--c-muted);
@@ -200,19 +171,33 @@
     padding: 10px 12px;
     background: #f9fafb;
   }
-  .search {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px dashed var(--c-border);
+  .kyuko {
+    width: 100%;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #991b1b;
+    padding: 10px 14px;
+    border-radius: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-weight: 600;
+  }
+  .kyuko-mark {
+    background: #b91c1c;
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
   }
   .search-row {
     display: flex;
     gap: 8px;
   }
-  .search-row input {
-    flex: 1;
-  }
-  .add {
-    white-space: nowrap;
-  }
+  .search-row input { flex: 1; }
+  .add { white-space: nowrap; }
 </style>

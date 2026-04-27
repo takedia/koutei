@@ -3,18 +3,22 @@
   import { formatYMD } from '../../lib/utils/date.js';
 
   /** @type {{
+   *   open: boolean,
    *   bar: import('../../lib/types.js').Bar | null,
    *   onSave: (bar: import('../../lib/types.js').Bar) => void,
    *   onDelete: () => void,
    *   onCancel: () => void
    * }} */
-  let { bar, onSave, onDelete, onCancel } = $props();
+  let { open, bar, onSave, onDelete, onCancel } = $props();
 
   /** @type {import('../../lib/types.js').Bar | null} */
   let local = $state(null);
 
+  // open になった瞬間に bar の内容で local を初期化
   $effect(() => {
-    local = bar ? structuredClone($state.snapshot(bar)) : null;
+    if (open && bar) {
+      local = JSON.parse(JSON.stringify(bar));
+    }
   });
 
   function save() {
@@ -29,7 +33,7 @@
   let hours = $derived(local ? calcBarHours(local) : 0);
 </script>
 
-{#if local}
+{#if open && local}
   <div class="backdrop" role="dialog" aria-modal="true">
     <button class="bg" onclick={onCancel} aria-label="閉じる"></button>
     <div class="sheet">
@@ -92,12 +96,7 @@
     flex-direction: column;
     justify-content: flex-end;
   }
-  .bg {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    border: none;
-  }
+  .bg { position: absolute; inset: 0; background: rgba(0,0,0,0.4); border: none; }
   .sheet {
     position: relative;
     background: #fff;
@@ -108,10 +107,7 @@
     flex-direction: column;
     animation: slideUp 0.18s ease-out;
   }
-  @keyframes slideUp {
-    from { transform: translateY(100%); }
-    to   { transform: translateY(0); }
-  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   header {
     display: flex;
     align-items: center;
