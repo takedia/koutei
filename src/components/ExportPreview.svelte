@@ -2,29 +2,15 @@
   /** @type {{
    *   open: boolean,
    *   kind: 'png'|'pdf'|null,
-   *   blob: Blob|null,
+   *   url: string|null,
    *   filename: string,
    *   onDownload: () => void,
    *   onCancel: () => void
    * }} */
-  let { open, kind, blob, filename, onDownload, onCancel } = $props();
-
-  let url = $state(/** @type {string|null} */ (null));
-
-  $effect(() => {
-    if (!open || !blob) {
-      url = null;
-      return;
-    }
-    const u = URL.createObjectURL(blob);
-    url = u;
-    return () => {
-      URL.revokeObjectURL(u);
-    };
-  });
+  let { open, kind, url, filename, onDownload, onCancel } = $props();
 </script>
 
-{#if open && blob}
+{#if open && url}
   <div class="backdrop" role="dialog" aria-modal="true">
     <button class="bg" onclick={onCancel} aria-label="閉じる"></button>
     <div class="sheet">

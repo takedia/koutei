@@ -19,12 +19,19 @@
 
   /** @type {HTMLDivElement | null} */
   let calendarRoot = $state(null);
+  /** 画像/PDF キャプチャ対象（meta-row + topbar + calendar を含む） */
+  /** @type {HTMLDivElement | null} */
+  let exportRoot = $state(null);
 
   // プレビュー状態
   let previewOpen = $state(false);
   let previewKind = $state(/** @type {'png'|'pdf'|null} */ (null));
   let previewBlob = $state(/** @type {Blob|null} */ (null));
+  let previewUrl = $state(/** @type {string|null} */ (null));
   let previewFilename = $state('');
+
+  const isMobileUa = typeof navigator !== 'undefined' &&
+    /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
 
   /** @type {import('../lib/types.js').Koutei | null} */
   let koutei = $state(null);
@@ -265,21 +272,28 @@
     }
   }
 
-  /** カレンダー本体の DOM 要素（.cal）を取得 */
+  /** 画像/PDF キャプチャ対象 = meta-row + topbar + calendar を含む親 DOM */
   function getCaptureTarget() {
-    return calendarRoot?.querySelector('.cal') ?? calendarRoot;
+    return exportRoot;
   }
 
   /** 出力時に +/-項目 行を一時的に隠す */
   async function withPrintingClass(/** @type {() => Promise<any>} */ fn) {
-    if (!calendarRoot) return fn();
-    calendarRoot.classList.add('printing');
+    if (!exportRoot) return fn();
+    exportRoot.classList.add('printing');
     // 1フレーム待ってレイアウトを確定
     await new Promise(resolve => requestAnimationFrame(resolve));
     try {
       return await fn();
     } finally {
-      calendarRoot.classList.remove('printing');
+      exportRoot.classList.remove('printing');
+    }
+  }
+
+  function clearPreviewUrl() {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
     }
   }
 
@@ -296,8 +310,10 @@
       const blob = await withPrintingClass(() =>
         exportElementAsPng(/** @type {HTMLElement} */ (target))
       );
+      clearPreviewUrl();
       previewKind = 'png';
       previewBlob = blob;
+      previewUrl = URL.createObjectURL(blob);
       previewFilename = makeFilename(koutei, 'png');
       previewOpen = true;
     } catch (e) {
@@ -319,9 +335,18 @@
       const blob = await withPrintingClass(() =>
         exportElementAsPdf(/** @type {HTMLElement} */ (target))
       );
+      const fname = makeFilename(koutei, 'pdf');
+      // モバイルは iframe PDF プレビューが不安定なので即ダウンロード
+      if (isMobileUa) {
+        downloadBlob(blob, fname);
+        toasts.info('PDFをダウンロードしました');
+        return;
+      }
+      clearPreviewUrl();
       previewKind = 'pdf';
       previewBlob = blob;
-      previewFilename = makeFilename(koutei, 'pdf');
+      previewUrl = URL.createObjectURL(blob);
+      previewFilename = fname;
       previewOpen = true;
     } catch (e) {
       console.error(e);
@@ -334,11 +359,13 @@
     downloadBlob(previewBlob, previewFilename);
     previewOpen = false;
     previewBlob = null;
+    clearPreviewUrl();
     toasts.info('ダウンロードしました');
   }
   function previewClose() {
     previewOpen = false;
     previewBlob = null;
+    clearPreviewUrl();
   }
 </script>
 
@@ -353,42 +380,45 @@
 {:else if !koutei || !block}
   <p class="muted">工程表が見つかりませんでした。</p>
 {:else}
-  <section class="meta-row">
-    <input class="ipt" type="text" bind:value={koutei.meta.発注者} oninput={markDirty} placeholder="発注者" aria-label="発注者" />
-    <input class="ipt num" type="text" bind:value={block.工事番号} oninput={markDirty} placeholder="工事番号" aria-label="工事番号" />
-    <input class="ipt flex" type="text" bind:value={block.工事名} oninput={markDirty} placeholder="工事名" aria-label="工事名" />
-    <input class="ipt" type="text" bind:value={block.職長名} oninput={markDirty} placeholder="職長名" aria-label="職長名" />
-  </section>
-
-  <section class="topbar">
-    <div class="seg-strong">
-      <button class:on={koutei.meta.提出種別 === '2週'} onclick={() => changeKind('2週')}>2週</button>
-      <button class:on={koutei.meta.提出種別 === '月間'} onclick={() => changeKind('月間')}>月間</button>
-    </div>
-    <div class="period">
-      {#if koutei.meta.提出種別 === '2週'}
-        <button class="nav" onclick={() => shiftPeriod(-7)} aria-label="1週前">‹</button>
-      {/if}
-      <span>{formatRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了)}</span>
-      {#if koutei.meta.提出種別 === '2週'}
-        <button class="nav" onclick={() => shiftPeriod(7)} aria-label="1週後">›</button>
-      {/if}
-    </div>
-    <div class="hours-pill">{blockTotalHours(block)}h</div>
-  </section>
-
   <main>
-    <div bind:this={calendarRoot}>
-      <Calendar
-        {block}
-        periodStart={koutei.meta.対象期間.開始}
-        periodEnd={koutei.meta.対象期間.終了}
-        onChange={markDirty}
-        onPickKoushu={openPicker}
-        onEditBar={openBarEditor}
-        onEditCell={openCellEditor}
-      />
+    <div class="export-root" bind:this={exportRoot}>
+      <section class="meta-row">
+        <input class="ipt" type="text" bind:value={koutei.meta.発注者} oninput={markDirty} placeholder="発注者" aria-label="発注者" />
+        <input class="ipt num" type="text" bind:value={block.工事番号} oninput={markDirty} placeholder="工事番号" aria-label="工事番号" />
+        <input class="ipt flex" type="text" bind:value={block.工事名} oninput={markDirty} placeholder="工事名" aria-label="工事名" />
+        <input class="ipt" type="text" bind:value={block.職長名} oninput={markDirty} placeholder="職長名" aria-label="職長名" />
+      </section>
+
+      <section class="topbar">
+        <div class="seg-strong">
+          <button class:on={koutei.meta.提出種別 === '2週'} onclick={() => changeKind('2週')}>2週</button>
+          <button class:on={koutei.meta.提出種別 === '月間'} onclick={() => changeKind('月間')}>月間</button>
+        </div>
+        <div class="period">
+          {#if koutei.meta.提出種別 === '2週'}
+            <button class="nav" onclick={() => shiftPeriod(-7)} aria-label="1週前">‹</button>
+          {/if}
+          <span>{formatRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了)}</span>
+          {#if koutei.meta.提出種別 === '2週'}
+            <button class="nav" onclick={() => shiftPeriod(7)} aria-label="1週後">›</button>
+          {/if}
+        </div>
+        <div class="hours-pill">{blockTotalHours(block)}h</div>
+      </section>
+
+      <div bind:this={calendarRoot}>
+        <Calendar
+          {block}
+          periodStart={koutei.meta.対象期間.開始}
+          periodEnd={koutei.meta.対象期間.終了}
+          onChange={markDirty}
+          onPickKoushu={openPicker}
+          onEditBar={openBarEditor}
+          onEditCell={openCellEditor}
+        />
+      </div>
     </div>
+
     <div class="footer-actions">
       <button onclick={copyPrevWeek}>🔁 前週コピー</button>
     </div>
@@ -429,7 +459,7 @@
 <ExportPreview
   open={previewOpen}
   kind={previewKind}
-  blob={previewBlob}
+  url={previewUrl}
   filename={previewFilename}
   onDownload={previewDownload}
   onCancel={previewClose}
