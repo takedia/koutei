@@ -135,7 +135,7 @@ export async function rebuildIndex() {
 
 // ───────────────────────── 設定 ─────────────────────────
 
-const REQUIRED_VEHICLE = ['10tセルフ', '20tセルフ', '特車'];
+const REQUIRED_KAISO = ['10tセルフ', '20tセルフ', '特車'];
 
 /** @returns {Promise<import('./types.js').設定>} */
 export async function loadSettings() {
@@ -145,12 +145,26 @@ export async function loadSettings() {
     await set('settings', s);
     return s;
   }
-  // 既存設定にも必須プリセットを追補（重複は加えない）
+  // 移行：旧設定で 車両プリセット に入っていた回送系を 回送プリセット に移動
   let mutated = false;
-  if (!Array.isArray(s.車両プリセット)) s.車両プリセット = [];
-  for (const v of REQUIRED_VEHICLE) {
-    if (!s.車両プリセット.includes(v)) {
-      s.車両プリセット.push(v);
+  if (!Array.isArray(s.回送プリセット)) { s.回送プリセット = []; mutated = true; }
+  if (Array.isArray(s.車両プリセット)) {
+    const moved = s.車両プリセット.filter(v => REQUIRED_KAISO.includes(v));
+    if (moved.length) {
+      for (const v of moved) {
+        if (!s.回送プリセット.includes(v)) s.回送プリセット.push(v);
+      }
+      s.車両プリセット = s.車両プリセット.filter(v => !REQUIRED_KAISO.includes(v));
+      mutated = true;
+    }
+  } else {
+    s.車両プリセット = [];
+    mutated = true;
+  }
+  // 必須回送プリセットの追補
+  for (const v of REQUIRED_KAISO) {
+    if (!s.回送プリセット.includes(v)) {
+      s.回送プリセット.push(v);
       mutated = true;
     }
   }
@@ -170,7 +184,8 @@ function defaultSettings() {
     宛先プリセット: [],
     工種辞書: [...KOUSHU_DEFAULT],
     重機プリセット: ['0.7BH', '0.45BH', '0.25BH', 'ラフター25t', 'ラフター50t', '4tユニック'],
-    車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック', '10tセルフ', '20tセルフ', '特車'],
+    車両プリセット: ['10tD×1', '10tD×2', '4tD×1', '2tD×1', '4tユニック'],
+    回送プリセット: ['10tセルフ', '20tセルフ', '特車'],
     件名テンプレ: '[工程表] {工事番号} {期間}',
     自分のリポ: null
   };

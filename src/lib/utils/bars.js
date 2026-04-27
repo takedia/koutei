@@ -15,15 +15,6 @@ export function makeRange(a, b) {
 }
 
 /**
- * バーが指定日付を含むか
- * @param {import('../types.js').Bar} bar
- * @param {string} dateStr
- */
-export function barContains(bar, dateStr) {
-  return dateStr >= bar.開始 && dateStr <= bar.終了;
-}
-
-/**
  * バンド内の合計時間
  * @param {import('../types.js').Band} band
  */
@@ -52,9 +43,7 @@ export function createBar(ラベル, 開始, 終了) {
     サブラベル: '',
     開始,
     終了,
-    始点位置: '全日',
-    終点位置: '全日',
-    雨天: false,
-    休工: false
+    休工: false,
+    日別: {}
   };
 }

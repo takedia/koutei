@@ -23,14 +23,17 @@ import { uuid } from './utils/uuid.js';
  */
 
 /**
+ * @typedef {'全日'|'AM'|'PM'} 日状態
+ */
+
+/**
  * @typedef {Object} Bar
  * @property {string} ラベル
  * @property {string} サブラベル
  * @property {string} 開始
  * @property {string} 終了
- * @property {'AM'|'全日'} 始点位置
- * @property {'PM'|'全日'} 終点位置
  * @property {boolean} 休工
+ * @property {Record<string, 日状態>} 日別  // 1マスずつの状態（未指定=全日）
  */
 
 /**
@@ -205,10 +208,18 @@ export function migrateKoutei(k) {
       if (b.備考 == null) b.備考 = '';
       for (const bar of b.バー ?? []) {
         if (bar.休工 == null) bar.休工 = false;
-        if (bar.始点位置 == null) bar.始点位置 = '全日';
-        if (bar.終点位置 == null) bar.終点位置 = '全日';
         if (bar.サブラベル == null) bar.サブラベル = '';
         delete bar.雨天;
+        // 旧形式 始点位置/終点位置 → 日別
+        if (!bar.日別) bar.日別 = {};
+        if (bar.始点位置 === 'AM' && bar.開始) {
+          bar.日別[bar.開始] = bar.日別[bar.開始] ?? 'AM';
+        }
+        if (bar.終点位置 === 'PM' && bar.終了) {
+          bar.日別[bar.終了] = bar.日別[bar.終了] ?? 'PM';
+        }
+        delete bar.始点位置;
+        delete bar.終点位置;
       }
     }
 
@@ -253,11 +264,14 @@ export function migrateKoutei(k) {
  */
 export function calcBarHours(bar) {
   if (bar.休工) return 0;
-  const start = dayjs(bar.開始);
+  let cur = dayjs(bar.開始);
   const end = dayjs(bar.終了);
-  const totalDays = end.diff(start, 'day') + 1;
-  let hours = totalDays * 8;
-  if (bar.始点位置 === 'AM') hours -= 4;
-  if (bar.終点位置 === 'PM') hours -= 4;
-  return Math.max(0, hours);
+  let hours = 0;
+  while (cur.isBefore(end) || cur.isSame(end)) {
+    const d = cur.format('YYYY-MM-DD');
+    const s = bar.日別?.[d] ?? '全日';
+    hours += s === '全日' ? 8 : 4;
+    cur = cur.add(1, 'day');
+  }
+  return hours;
 }

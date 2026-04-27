@@ -1,7 +1,7 @@
 <script>
   import { dateRange, dayOfWeek, dayOfWeekJa, dayOfMonth } from '../../lib/utils/date.js';
   import { holidayOf } from '../../lib/data/holidays.js';
-  import { calcBarHours, emptyDayCell, rebuildDayCells } from '../../lib/types.js';
+  import { calcBarHours, rebuildDayCells } from '../../lib/types.js';
   import { makeRange, createBar } from '../../lib/utils/bars.js';
 
   /** @type {{
@@ -17,48 +17,100 @@
 
   let dates = $derived(dateRange(periodStart, periodEnd));
 
+  /** @type {{ band: number, startDate: string, endDate: string } | null} */
+  let dragging = $state(null);
   /** @type {{ band: number, date: string } | null} */
-  let pendingStart = $state(null);
+  let pendingTap = $state(null);
+  let dragMoved = $state(false);
 
   const COL_WIDTH = 64;
   const LABEL_WIDTH = 110;
   const REMARK_WIDTH = 120;
   const TOTAL_WIDTH = 56;
 
-  /** 固定行の定義 */
+  /** 固定行：回送も多重対応 */
   const FIXED_KEYS = /** @type {const} */ ([
-    { key: '人員',   label: '人員',   多: true  },
-    { key: '重機',   label: '重機',   多: true  },
-    { key: '回送',   label: '回送',   多: false },
-    { key: '車両',   label: '車両',   多: true  },
-    { key: 'その他', label: 'その他', 多: true  }
+    { key: '人員',   label: '人員',   多: true },
+    { key: '重機',   label: '重機',   多: true },
+    { key: '回送',   label: '回送',   多: true },
+    { key: '車両',   label: '車両',   多: true },
+    { key: 'その他', label: 'その他', 多: true }
   ]);
 
-  /** バンドセルのタップ */
-  function onBandCellTap(/** @type {number} */ bandIdx, /** @type {string} */ date) {
-    if (pendingStart && pendingStart.band === bandIdx) {
-      const { 開始, 終了 } = makeRange(pendingStart.date, date);
-      pendingStart = null;
-      onPickKoushu((label, opts) => {
-        if (!label) return;
-        const bar = createBar(label, 開始, 終了);
-        if (opts?.休工) bar.休工 = true;
-        block.バンド[bandIdx].バー.push(bar);
-        block.バンド = block.バンド;
-        onChange();
-        // 作成直後にバー編集を開く（時間／補足を即設定できるように）
-        const newBarIdx = block.バンド[bandIdx].バー.length - 1;
-        onEditBar(bandIdx, newBarIdx);
-      });
-    } else {
-      pendingStart = { band: bandIdx, date };
+  // ──── ドラッグ選択 ────
+
+  /**
+   * @param {number} bandIdx
+   * @param {string} date
+   * @param {PointerEvent} ev
+   */
+  function onCellPointerDown(bandIdx, date, ev) {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    pendingTap = { band: bandIdx, date };
+    dragging = { band: bandIdx, startDate: date, endDate: date };
+    dragMoved = false;
+    /** @type {HTMLElement} */ (ev.currentTarget).setPointerCapture?.(ev.pointerId);
+  }
+
+  /**
+   * @param {PointerEvent} ev
+   */
+  function onCellPointerMove(ev) {
+    if (!dragging) return;
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cell = /** @type {HTMLElement|null} */ (el?.closest?.('[data-band-cell]') ?? null);
+    if (!cell) return;
+    const bandIdx = Number(cell.dataset.band);
+    const d = cell.dataset.date;
+    if (!d) return;
+    if (bandIdx !== dragging.band) return;
+    if (d !== dragging.endDate) {
+      dragging = { ...dragging, endDate: d };
+      if (d !== dragging.startDate) dragMoved = true;
     }
+  }
+
+  /**
+   * @param {PointerEvent} ev
+   */
+  function onCellPointerUp(ev) {
+    if (!dragging) return;
+    const { band, startDate, endDate } = dragging;
+    const wasDragMoved = dragMoved;
+    dragging = null;
+    pendingTap = null;
+    dragMoved = false;
+
+    const { 開始, 終了 } = makeRange(startDate, endDate);
+    onPickKoushu((label, opts) => {
+      if (!label) return;
+      const bar = createBar(label, 開始, 終了);
+      if (opts?.休工) bar.休工 = true;
+      block.バンド[band].バー.push(bar);
+      block.バンド = block.バンド;
+      onChange();
+      const newBarIdx = block.バンド[band].バー.length - 1;
+      onEditBar(band, newBarIdx);
+    });
+  }
+
+  function onCellPointerCancel() {
+    dragging = null;
+    pendingTap = null;
+    dragMoved = false;
+  }
+
+  /** ドラッグ中の選択範囲に含まれるか */
+  function inDrag(/** @type {number} */ bandIdx, /** @type {string} */ date) {
+    if (!dragging || dragging.band !== bandIdx) return false;
+    const a = dragging.startDate <= dragging.endDate ? dragging.startDate : dragging.endDate;
+    const b = dragging.startDate <= dragging.endDate ? dragging.endDate : dragging.startDate;
+    return date >= a && date <= b;
   }
 
   /** @param {Event} ev */
   function onBarTap(/** @type {number} */ bandIdx, /** @type {number} */ barIdx, ev) {
     ev.stopPropagation();
-    pendingStart = null;
     onEditBar(bandIdx, barIdx);
   }
 
@@ -75,7 +127,6 @@
     onChange();
   }
 
-  /** 固定行の +/- */
   function addFixed(/** @type {keyof import('../../lib/types.js').固定行数} */ key) {
     block.固定行数[key]++;
     block.日次セル = rebuildDayCells(periodStart, periodEnd, block.固定行数, block.日次セル);
@@ -88,7 +139,6 @@
     onChange();
   }
 
-  /** 期間変更で日次セルが空の場合の保険 */
   $effect(() => {
     let needsRebuild = false;
     for (const d of dates) {
@@ -107,19 +157,6 @@
     return '';
   }
 
-  function isPending(/** @type {number} */ bandIdx, /** @type {string} */ date) {
-    return pendingStart && pendingStart.band === bandIdx && pendingStart.date === date;
-  }
-
-  /** バーの grid-column */
-  function barColumns(/** @type {import('../../lib/types.js').Bar} */ bar) {
-    const sIdx = dates.indexOf(bar.開始);
-    const eIdx = dates.indexOf(bar.終了);
-    if (sIdx < 0 || eIdx < 0) return null;
-    // grid列: 1=ラベル, 2..N+1=日付, N+2=備考, N+3=合計
-    return { start: sIdx + 2, end: eIdx + 3 };
-  }
-
   function kbnColor(/** @type {string} */ k) {
     if (k === 'リース') return '#1f6feb';
     if (k === '外注') return '#dc2626';
@@ -132,24 +169,17 @@
 
   let anyBandLabeled = $derived(block.バンド.some(b => !isBandEmpty(b)));
 
-  /**
-   * グリッド配置計算用：
-   * row 1 = ヘッダ
-   * バンド: rows 2..(2 + バンド数 - 1)
-   * +項目行: row (2 + バンド数)
-   * 固定行: その下
-   */
+  // 行レイアウト
   let bandStartRow = 2;
   let bandsCount = $derived(block.バンド.length);
   let ctrlRow = $derived(bandStartRow + bandsCount);
   let fixedStartRow = $derived(ctrlRow + 1);
 
-  /** 各固定行キーの先頭rowを返すヘルパ */
-  function fixedRowStart(/** @type {string} */ key) {
+  /** @param {string} key */
+  function fixedRowStart(key) {
     let row = fixedStartRow;
     for (const f of FIXED_KEYS) {
       if (f.key === key) return row;
-      // ＋/-行を持たない（多=false）固定行（回送）はctrl行を出さない
       row += block.固定行数[f.key] + (f.多 ? 1 : 0);
     }
     return row;
@@ -157,6 +187,17 @@
 
   function getEntry(/** @type {string} */ date, /** @type {string} */ key, /** @type {number} */ idx) {
     return block.日次セル[date]?.[key]?.[idx] ?? { 値: '', 区分: '自社' };
+  }
+
+  /** バーの日数列の grid-column インデックス（1=ラベル列を含めて2始まり） */
+  function colIdxOf(/** @type {string} */ date) {
+    const i = dates.indexOf(date);
+    return i < 0 ? -1 : i + 2;
+  }
+
+  /** バーの日付配列 */
+  function barDays(/** @type {import('../../lib/types.js').Bar} */ bar) {
+    return dateRange(bar.開始, bar.終了).filter(d => dates.includes(d));
   }
 </script>
 
@@ -172,21 +213,21 @@
     "
   >
     <!-- 行1: ヘッダ -->
-    <div class="cell head sticky-l">項目</div>
-    {#each dates as d (d)}
+    <div class="cell head sticky-l" style="grid-column: 1; grid-row: 1;">項目</div>
+    {#each dates as d, i (d)}
       {@const hol = holidayOf(d)}
-      <div class="cell head {dayClass(d)}" title={hol ?? ''}>
+      <div class="cell head {dayClass(d)}" title={hol ?? ''} style="grid-column: {i+2}; grid-row: 1;">
         <div class="dow">{dayOfWeekJa(d)}</div>
         <div class="dnum">{dayOfMonth(d)}</div>
       </div>
     {/each}
-    <div class="cell head">備考</div>
-    <div class="cell head">合計</div>
+    <div class="cell head" style="grid-column: {dates.length + 2}; grid-row: 1;">備考</div>
+    <div class="cell head" style="grid-column: {dates.length + 3}; grid-row: 1;">合計</div>
 
     <!-- バンド -->
     {#each block.バンド as band, bi (bi)}
       <!-- ラベル -->
-      <div class="cell labelcell sticky-l" style="grid-row: {bandStartRow + bi};">
+      <div class="cell labelcell sticky-l" style="grid-column: 1; grid-row: {bandStartRow + bi};">
         <input
           type="text"
           bind:value={band.ラベル}
@@ -195,17 +236,23 @@
           aria-label={`項目${bi+1}のラベル`}
         />
       </div>
-      <!-- 日付セル -->
+      <!-- 日付セル（ドラッグ受付） -->
       {#each dates as d, i (d)}
         <button
-          class="cell band-cell {dayClass(d)} {isPending(bi, d) ? 'pending' : ''}"
-          style="grid-row: {bandStartRow + bi};"
-          onclick={() => onBandCellTap(bi, d)}
+          class="cell band-cell {dayClass(d)} {inDrag(bi, d) ? 'pending' : ''}"
+          style="grid-column: {i + 2}; grid-row: {bandStartRow + bi};"
+          data-band-cell="1"
+          data-band={bi}
+          data-date={d}
+          onpointerdown={(e) => onCellPointerDown(bi, d, e)}
+          onpointermove={onCellPointerMove}
+          onpointerup={onCellPointerUp}
+          onpointercancel={onCellPointerCancel}
           aria-label={`${d} 項目${bi+1}`}
         ></button>
       {/each}
       <!-- 備考 -->
-      <div class="cell remark" style="grid-row: {bandStartRow + bi};">
+      <div class="cell remark" style="grid-column: {dates.length + 2}; grid-row: {bandStartRow + bi};">
         <input
           type="text"
           bind:value={band.備考}
@@ -214,35 +261,40 @@
         />
       </div>
       <!-- 合計 -->
-      <div class="cell total" style="grid-row: {bandStartRow + bi};">
+      <div class="cell total" style="grid-column: {dates.length + 3}; grid-row: {bandStartRow + bi};">
         {band.バー.reduce((s, b) => s + calcBarHours(b), 0)}h
       </div>
 
-      <!-- バー（同じ行に重ねる） -->
+      <!-- バー：日ごとにセグメントを描画（per-day 半日対応） -->
       {#each band.バー as bar, idx (idx)}
-        {@const cols = barColumns(bar)}
-        {#if cols}
-          <button
-            class="bar {bar.休工 ? 'kyoko' : ''}"
-            style="
-              grid-column: {cols.start} / {cols.end};
-              grid-row: {bandStartRow + bi};
-              margin-left: {bar.始点位置 === 'AM' ? COL_WIDTH / 2 : 0}px;
-              margin-right: {bar.終点位置 === 'PM' ? COL_WIDTH / 2 : 0}px;
-            "
-            onclick={(e) => onBarTap(bi, idx, e)}
-            aria-label={`バー: ${bar.ラベル}`}
-          >
-            <div class="bar-main">{bar.ラベル}</div>
-            {#if bar.サブラベル}<div class="bar-sub">{bar.サブラベル}</div>{/if}
-            <div class="bar-h">{calcBarHours(bar)}h</div>
-          </button>
-        {/if}
+        {@const days = barDays(bar)}
+        {#each days as d, di (d)}
+          {@const col = colIdxOf(d)}
+          {@const state = bar.日別?.[d] ?? '全日'}
+          {#if col >= 2}
+            <button
+              class="bar-seg {state.toLowerCase()} {bar.休工 ? 'kyoko' : ''} {di === 0 ? 'is-first' : ''} {di === days.length - 1 ? 'is-last' : ''}"
+              style="grid-column: {col}; grid-row: {bandStartRow + bi};"
+              onclick={(e) => onBarTap(bi, idx, e)}
+              aria-label={`バー: ${bar.ラベル}`}
+            >
+              {#if di === 0}
+                <span class="bar-content">
+                  <span class="bar-main">{bar.ラベル}</span>
+                  {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
+                </span>
+              {/if}
+              {#if di === days.length - 1}
+                <span class="bar-h">{calcBarHours(bar)}h</span>
+              {/if}
+            </button>
+          {/if}
+        {/each}
       {/each}
     {/each}
 
     <!-- ＋/-項目行 -->
-    <div class="cell labelcell sticky-l ctrl-row" style="grid-row: {ctrlRow};">
+    <div class="cell labelcell sticky-l ctrl-row" style="grid-column: 1; grid-row: {ctrlRow};">
       <div class="ctrls">
         <button class="mini" onclick={addBand}>＋項目</button>
         {#if block.バンド.length > 1}
@@ -250,30 +302,27 @@
         {/if}
       </div>
     </div>
-    {#each dates as d (d)}
-      <div class="cell ctrl-row" style="grid-row: {ctrlRow};"></div>
+    {#each dates as d, i (d)}
+      <div class="cell ctrl-row" style="grid-column: {i + 2}; grid-row: {ctrlRow};"></div>
     {/each}
-    <div class="cell ctrl-row" style="grid-row: {ctrlRow};"></div>
-    <div class="cell ctrl-row" style="grid-row: {ctrlRow};"></div>
+    <div class="cell ctrl-row" style="grid-column: {dates.length + 2}; grid-row: {ctrlRow};"></div>
+    <div class="cell ctrl-row" style="grid-column: {dates.length + 3}; grid-row: {ctrlRow};"></div>
 
     <!-- 固定行 -->
     {#each FIXED_KEYS as f (f.key)}
       {@const startRow = fixedRowStart(f.key)}
       {@const N = block.固定行数[f.key]}
-      <!-- N 個のサブ行 -->
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
-        <!-- ラベル：先頭サブ行のみ表示 -->
         {#if si === 0}
-          <div class="cell labelcell sticky-l muted-cell" style="grid-row: {startRow} / span {N};">
+          <div class="cell labelcell sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow} / span {N};">
             <span>{f.label}</span>
           </div>
         {/if}
-        <!-- 日付セル -->
-        {#each dates as d (d)}
+        {#each dates as d, i (d)}
           {@const e = getEntry(d, f.key, si)}
           <button
             class="cell day-cell {dayClass(d)}"
-            style="grid-row: {startRow + si};"
+            style="grid-column: {i + 2}; grid-row: {startRow + si};"
             disabled={!anyBandLabeled}
             onclick={() => onEditCell(d, f.key, si)}
             aria-label={`${d} ${f.label}${N > 1 ? si+1 : ''}`}
@@ -283,15 +332,13 @@
             {/if}
           </button>
         {/each}
-        <!-- 備考・合計（空セル） -->
-        <div class="cell remark muted-cell" style="grid-row: {startRow + si};"></div>
-        <div class="cell total muted-cell" style="grid-row: {startRow + si};"></div>
+        <div class="cell remark muted-cell" style="grid-column: {dates.length + 2}; grid-row: {startRow + si};"></div>
+        <div class="cell total muted-cell" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
       {/each}
 
-      <!-- +/-行（多=true のときのみ） -->
       {#if f.多}
         {@const ctrlRowOfThisFixed = startRow + N}
-        <div class="cell labelcell sticky-l ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};">
+        <div class="cell labelcell sticky-l ctrl-row-fixed muted-cell" style="grid-column: 1; grid-row: {ctrlRowOfThisFixed};">
           <div class="ctrls">
             <button class="mini" onclick={() => addFixed(f.key)}>＋{f.label}</button>
             {#if N > 1}
@@ -299,11 +346,11 @@
             {/if}
           </div>
         </div>
-        {#each dates as d (d)}
-          <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+        {#each dates as d, i (d)}
+          <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {i + 2}; grid-row: {ctrlRowOfThisFixed};"></div>
         {/each}
-        <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
-        <div class="cell ctrl-row-fixed muted-cell" style="grid-row: {ctrlRowOfThisFixed};"></div>
+        <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {dates.length + 2}; grid-row: {ctrlRowOfThisFixed};"></div>
+        <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {dates.length + 3}; grid-row: {ctrlRowOfThisFixed};"></div>
       {/if}
     {/each}
   </div>
@@ -317,8 +364,6 @@
     background: #fff;
     -webkit-overflow-scrolling: touch;
     max-height: 75dvh;
-    /* sticky 子要素のために、これ自身をスクロール origin にする */
-    contain: paint;
   }
   .cal {
     display: grid;
@@ -342,15 +387,13 @@
     justify-content: center;
     overflow: hidden;
   }
-  .cell.holiday {
-    background: var(--c-holiday);
-  }
+  .cell.holiday { background: var(--c-holiday); }
+
   .head {
     background: #f3f4f6;
     flex-direction: column;
     line-height: 1.1;
     font-weight: 600;
-    grid-row: 1;
     position: sticky;
     top: 0;
     z-index: 4;
@@ -359,7 +402,6 @@
   .head .dnum { font-size: 14px; }
   .head.holiday { background: var(--c-holiday); }
 
-  /* ラベル列のみ sticky-left */
   .sticky-l {
     position: sticky;
     left: 0;
@@ -369,7 +411,6 @@
   }
   .head.sticky-l { z-index: 5; background: #f3f4f6; }
 
-  /* ラベルセル */
   .labelcell {
     padding: 2px 6px;
     flex-direction: column;
@@ -390,61 +431,65 @@
     outline: 1px solid var(--c-accent);
     border-radius: 3px;
   }
-  .labelcell input::placeholder {
-    color: #cbd5e1;
-  }
+  .labelcell input::placeholder { color: #cbd5e1; }
   .labelcell.muted-cell {
     background: #f8f9fa;
     align-items: center;
   }
-  .labelcell.muted-cell span {
-    font-weight: 600;
-  }
+  .labelcell.muted-cell span { font-weight: 600; }
 
-  /* バンドセル */
-  .band-cell { cursor: pointer; }
+  .band-cell {
+    cursor: pointer;
+    touch-action: none;
+  }
   .band-cell.pending {
     background: #fff3a3;
     box-shadow: inset 0 0 0 2px #f59e0b;
   }
 
-  /* バー */
-  .bar {
+  /* バー（per-day セグメント） */
+  .bar-seg {
     align-self: center;
-    justify-self: stretch;
     min-height: 32px;
     background: #fff;
-    border: 1.5px solid #1a1a1a;
-    border-radius: 4px;
-    padding: 2px 8px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    overflow: hidden;
+    border-top: 1.5px solid #1a1a1a;
+    border-bottom: 1.5px solid #1a1a1a;
     cursor: pointer;
-    line-height: 1.15;
-    text-align: left;
     z-index: 2;
     position: relative;
+    padding: 0;
+    text-align: left;
+    overflow: visible;
   }
-  .bar.kyoko {
+  .bar-seg.全日 { justify-self: stretch; }
+  .bar-seg.am   { justify-self: start; width: 50%; }
+  .bar-seg.pm   { justify-self: end;   width: 50%; }
+  .bar-seg.is-first { border-left: 1.5px solid #1a1a1a; border-radius: 4px 0 0 4px; }
+  .bar-seg.is-last  { border-right: 1.5px solid #1a1a1a; border-radius: 0 4px 4px 0; }
+  .bar-seg.is-first.is-last { border-radius: 4px; }
+  .bar-seg.kyoko {
     background: repeating-linear-gradient(45deg, #fff, #fff 4px, #ddd 4px, #ddd 8px);
     border-color: #6b7280;
     color: #6b7280;
   }
+  .bar-content {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    pointer-events: none;
+    white-space: nowrap;
+  }
   .bar-main {
     font-weight: 600;
     font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .bar-sub {
     font-size: 10px;
     color: var(--c-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .bar-h {
     position: absolute;
@@ -455,12 +500,10 @@
     background: rgba(255,255,255,0.85);
     padding: 0 2px;
     border-radius: 2px;
+    pointer-events: none;
   }
 
-  /* 備考列 */
-  .remark {
-    padding: 2px 4px;
-  }
+  .remark { padding: 2px 4px; }
   .remark input {
     width: 100%;
     min-height: 30px;
@@ -469,12 +512,8 @@
     border: none;
     background: transparent;
   }
-  .remark input:focus {
-    outline: 1px solid var(--c-accent);
-    border-radius: 3px;
-  }
+  .remark input:focus { outline: 1px solid var(--c-accent); border-radius: 3px; }
 
-  /* 合計 */
   .total {
     background: #f3f4f6;
     font-weight: 600;
@@ -483,41 +522,20 @@
   }
   .total.muted-cell { background: #f8f9fa; color: transparent; }
 
-  /* コントロール行 */
   .ctrl-row {
     background: #fafafa;
     min-height: 30px;
   }
-  .ctrl-row.labelcell {
-    justify-content: flex-start;
-    padding: 0 6px;
-  }
-  .ctrls {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
+  .ctrl-row.labelcell { justify-content: flex-start; padding: 0 6px; }
+  .ctrls { display: flex; gap: 4px; align-items: center; }
   .mini {
     min-height: 26px;
     font-size: 11px;
     padding: 0 6px;
   }
 
-  /* 固定行を細く */
-  .day-cell {
-    cursor: pointer;
-    min-height: 30px;
-  }
-  .day-cell:disabled {
-    background: #f3f4f6;
-    cursor: not-allowed;
-  }
-  .muted-cell { min-height: 30px; }
-  .muted-cell.labelcell { min-height: 30px; }
-  .muted-cell.labelcell input { min-height: 26px; }
-  .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
-  .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
-  .ctrl-row-fixed .ctrls { display: flex; gap: 4px; align-items: center; }
+  .day-cell { cursor: pointer; min-height: 30px; }
+  .day-cell:disabled { background: #f3f4f6; cursor: not-allowed; }
   .day-cell.holiday:disabled { background: #f5e7c2; }
   .day-val {
     font-size: 11px;
@@ -529,7 +547,8 @@
     padding: 0 2px;
     font-weight: 600;
   }
-  .muted-cell {
-    background: #f8f9fa;
-  }
+  .muted-cell { background: #f8f9fa; min-height: 30px; }
+  .muted-cell.labelcell { min-height: 30px; }
+  .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
+  .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
 </style>

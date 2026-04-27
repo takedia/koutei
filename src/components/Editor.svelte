@@ -35,7 +35,7 @@
   let cellEditorValue = $state('');
   let cellEditorKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
   let cellEditorKbnType = $state(/** @type {'人員'|'重機等'|null} */ (null));
-  let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|null} */ (null));
+  let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|'回送プリセット'|null} */ (null));
   /** @type {(v: string, kbn: '自社'|'リース'|'外注') => void} */
   let cellEditorCb = $state(() => {});
 
@@ -73,8 +73,8 @@
 
   async function back() {
     if (dirty) {
-      const ok = confirm('保存していない変更があります。保存して戻りますか？');
-      if (ok) await save();
+      const ok = confirm('未保存の変更があります。\n破棄して戻る場合は OK、編集を続ける場合は キャンセル を押してください。\n（保存して戻りたい場合は、いったんキャンセル → 💾ボタンを押してから ← で戻ってください）');
+      if (!ok) return;
     }
     screen.set('home');
   }
@@ -125,11 +125,11 @@
    */
   function openCellEditor(date, key, subIdx) {
     if (!block) return;
-    /** @type {Record<string, {kbn: '人員'|'重機等', preset: '重機プリセット'|'車両プリセット'|null}>} */
+    /** @type {Record<string, {kbn: '人員'|'重機等', preset: '重機プリセット'|'車両プリセット'|'回送プリセット'|null}>} */
     const meta = {
       '人員':   { kbn: '人員',   preset: null },
       '重機':   { kbn: '重機等', preset: '重機プリセット' },
-      '回送':   { kbn: '重機等', preset: null },
+      '回送':   { kbn: '重機等', preset: '回送プリセット' },
       '車両':   { kbn: '重機等', preset: '車両プリセット' },
       'その他': { kbn: '重機等', preset: null }
     };

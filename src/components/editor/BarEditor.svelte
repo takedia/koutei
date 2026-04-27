@@ -1,6 +1,6 @@
 <script>
   import { calcBarHours } from '../../lib/types.js';
-  import { formatYMD } from '../../lib/utils/date.js';
+  import { dateRange, formatYMD, dayOfWeekJa } from '../../lib/utils/date.js';
 
   /** @type {{
    *   open: boolean,
@@ -17,45 +17,41 @@
   $effect(() => {
     if (open && bar) {
       local = JSON.parse(JSON.stringify(bar));
+      if (!local.日別) local.日別 = {};
     }
   });
 
-  function save() {
-    if (local) onSave(local);
-  }
-
+  function save() { if (local) onSave(local); }
   function del() {
     if (!confirm('このバーを削除します。よろしいですか？')) return;
     onDelete();
   }
 
-  /**
-   * @returns {'全日'|'AM'|'PM'}
-   */
-  function getMode() {
-    if (!local) return '全日';
-    if (local.始点位置 === 'AM') return 'AM';
-    if (local.終点位置 === 'PM') return 'PM';
-    return '全日';
+  /** @param {string} d @returns {'全日'|'AM'|'PM'} */
+  function stateOf(d) {
+    return /** @type {any} */ (local?.日別?.[d] ?? '全日');
   }
-
-  /** @param {'全日'|'AM'|'PM'} m */
-  function setMode(m) {
+  /** @param {string} d @param {'全日'|'AM'|'PM'} s */
+  function setState(d, s) {
     if (!local) return;
-    if (m === '全日') {
-      local.始点位置 = '全日';
-      local.終点位置 = '全日';
-    } else if (m === 'AM') {
-      local.始点位置 = 'AM';
-      local.終点位置 = '全日';
-    } else {
-      local.始点位置 = '全日';
-      local.終点位置 = 'PM';
+    if (!local.日別) local.日別 = {};
+    if (s === '全日') delete local.日別[d];
+    else local.日別[d] = s;
+    local = local;  // reactivity
+  }
+  /** @param {'全日'|'AM'|'PM'} s */
+  function setAll(s) {
+    if (!local) return;
+    if (!local.日別) local.日別 = {};
+    for (const d of days) {
+      if (s === '全日') delete local.日別[d];
+      else local.日別[d] = s;
     }
+    local = local;
   }
 
+  let days = $derived(local ? dateRange(local.開始, local.終了) : []);
   let hours = $derived(local ? calcBarHours(local) : 0);
-  let mode = $derived(getMode());
 </script>
 
 {#if open && local}
@@ -78,13 +74,32 @@
         </label>
 
         <div class="period">
-          {formatYMD(local.開始)} 〜 {formatYMD(local.終了)}
+          {formatYMD(local.開始)} 〜 {formatYMD(local.終了)} ({days.length}日)
         </div>
 
-        <div class="seg3">
-          <button class:on={mode === '全日'} onclick={() => setMode('全日')}>全日 8h</button>
-          <button class:on={mode === 'AM'}   onclick={() => setMode('AM')}>AM 4h</button>
-          <button class:on={mode === 'PM'}   onclick={() => setMode('PM')}>PM 4h</button>
+        {#if days.length > 1}
+          <div class="all-row">
+            <span class="lab">一括</span>
+            <div class="seg3">
+              <button onclick={() => setAll('全日')}>全日</button>
+              <button onclick={() => setAll('AM')}>AM</button>
+              <button onclick={() => setAll('PM')}>PM</button>
+            </div>
+          </div>
+        {/if}
+
+        <div class="day-list">
+          {#each days as d (d)}
+            {@const s = stateOf(d)}
+            <div class="day-row">
+              <span class="day-lab">{d.slice(5)} {dayOfWeekJa(d)}</span>
+              <div class="seg3">
+                <button class:on={s === '全日'} onclick={() => setState(d, '全日')}>全日 8h</button>
+                <button class:on={s === 'AM'} onclick={() => setState(d, 'AM')}>AM 4h</button>
+                <button class:on={s === 'PM'} onclick={() => setState(d, 'PM')}>PM 4h</button>
+              </div>
+            </div>
+          {/each}
         </div>
 
         <div class="toggles">
@@ -132,13 +147,20 @@
   label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--c-muted); }
   label input { color: var(--c-fg); }
   .period { font-size: 14px; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; }
+  .all-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .lab { font-size: 13px; color: var(--c-muted); width: 48px; }
   .seg3 {
     display: flex;
     gap: 4px;
+    flex: 1;
   }
   .seg3 button {
     flex: 1;
-    min-height: 44px;
+    min-height: 40px;
     background: #f9fafb;
     font-weight: 600;
   }
@@ -146,6 +168,23 @@
     background: var(--c-accent);
     color: #fff;
     border-color: var(--c-accent);
+  }
+  .day-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 40dvh;
+    overflow: auto;
+  }
+  .day-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .day-lab {
+    font-size: 13px;
+    width: 70px;
+    flex-shrink: 0;
   }
   .toggles { display: flex; gap: 14px; }
   .chk { flex-direction: row; align-items: center; gap: 6px; color: var(--c-fg); font-size: 14px; }

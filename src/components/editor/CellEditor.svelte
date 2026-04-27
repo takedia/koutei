@@ -8,7 +8,7 @@
    *   value: string,
    *   区分: '自社'|'リース'|'外注',
    *   区分種別: '人員'|'重機等'|null,
-   *   presetKey: '重機プリセット'|'車両プリセット'|null,
+   *   presetKey: '重機プリセット'|'車両プリセット'|'回送プリセット'|null,
    *   onSave: (v: string, kbn: '自社'|'リース'|'外注') => void,
    *   onCancel: () => void
    * }} */
