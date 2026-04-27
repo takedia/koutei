@@ -413,10 +413,7 @@
         {/each}
         <div class="cell remark muted-cell" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
         <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" style="grid-column: {dates.length + 4}; grid-row: {startRow + si};">
-          {#if f.key === '人員'}
-            {@const s = sumPerson(si)}
-            {s > 0 ? s : ''}
-          {/if}
+          {f.key === '人員' && sumPerson(si) > 0 ? sumPerson(si) : ''}
         </div>
       {/each}
 
