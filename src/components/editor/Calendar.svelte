@@ -24,7 +24,8 @@
   let dragMoved = $state(false);
 
   const COL_WIDTH = 64;
-  const LABEL_WIDTH = 110;
+  const KEY_WIDTH = 38;       // 項目名（人員/重機 等）の固定列
+  const SUB_WIDTH = 76;       // サブ行ラベル（自社/外注 等）の固定列
   const REMARK_WIDTH = 120;
   const TOTAL_WIDTH = 56;
 
@@ -223,10 +224,10 @@
     return sum;
   }
 
-  /** バーの日数列の grid-column インデックス（1=ラベル列を含めて2始まり） */
+  /** バーの日数列の grid-column インデックス（col 1=key, col 2=sub-label, col 3+=日付） */
   function colIdxOf(/** @type {string} */ date) {
     const i = dates.indexOf(date);
-    return i < 0 ? -1 : i + 2;
+    return i < 0 ? -1 : i + 3;
   }
 
   /** バーの日付配列 */
@@ -254,28 +255,29 @@
     class="cal"
     style="
       --cw: {COL_WIDTH}px;
-      --lw: {LABEL_WIDTH}px;
+      --kw: {KEY_WIDTH}px;
+      --slw: {SUB_WIDTH}px;
       --rw: {REMARK_WIDTH}px;
       --tw: {TOTAL_WIDTH}px;
-      grid-template-columns: var(--lw) repeat({dates.length}, var(--cw)) var(--rw) var(--tw);
+      grid-template-columns: var(--kw) var(--slw) repeat({dates.length}, minmax(var(--cw), max-content)) var(--rw) var(--tw);
     "
   >
     <!-- 行1: ヘッダ -->
-    <div class="cell head sticky-l" style="grid-column: 1; grid-row: 1;">項目</div>
+    <div class="cell head sticky-l1" style="grid-column: 1 / 3; grid-row: 1;">項目</div>
     {#each dates as d, i (d)}
       {@const hol = holidayOf(d)}
-      <div class="cell head {dayClass(d)}" title={hol ?? ''} style="grid-column: {i+2}; grid-row: 1;">
+      <div class="cell head {dayClass(d)}" title={hol ?? ''} style="grid-column: {i+3}; grid-row: 1;">
         <div class="dow">{dayOfWeekJa(d)}</div>
         <div class="dnum">{dayOfMonth(d)}</div>
       </div>
     {/each}
-    <div class="cell head" style="grid-column: {dates.length + 2}; grid-row: 1;">備考</div>
-    <div class="cell head" style="grid-column: {dates.length + 3}; grid-row: 1;">合計</div>
+    <div class="cell head" style="grid-column: {dates.length + 3}; grid-row: 1;">備考</div>
+    <div class="cell head" style="grid-column: {dates.length + 4}; grid-row: 1;">合計</div>
 
     <!-- バンド -->
     {#each block.バンド as band, bi (bi)}
       <!-- ラベル -->
-      <div class="cell labelcell sticky-l" style="grid-column: 1; grid-row: {bandStartRow + bi};">
+      <div class="cell labelcell sticky-l1" style="grid-column: 1 / 3; grid-row: {bandStartRow + bi};">
         <input
           type="text"
           bind:value={band.ラベル}
@@ -288,7 +290,7 @@
       {#each dates as d, i (d)}
         <button
           class="cell band-cell {dayClass(d)} {inDrag(bi, d) ? 'pending' : ''}"
-          style="grid-column: {i + 2}; grid-row: {bandStartRow + bi};"
+          style="grid-column: {i + 3}; grid-row: {bandStartRow + bi};"
           data-band-cell="1"
           data-band={bi}
           data-date={d}
@@ -300,7 +302,7 @@
         ></button>
       {/each}
       <!-- 備考 -->
-      <div class="cell remark" style="grid-column: {dates.length + 2}; grid-row: {bandStartRow + bi};">
+      <div class="cell remark" style="grid-column: {dates.length + 3}; grid-row: {bandStartRow + bi};">
         <input
           type="text"
           bind:value={band.備考}
@@ -309,7 +311,7 @@
         />
       </div>
       <!-- 合計 -->
-      <div class="cell total" style="grid-column: {dates.length + 3}; grid-row: {bandStartRow + bi};">
+      <div class="cell total" style="grid-column: {dates.length + 4}; grid-row: {bandStartRow + bi};">
         {band.バー.reduce((s, b) => s + calcBarHours(b), 0)}h
       </div>
 
@@ -318,8 +320,8 @@
         {@const days = barDays(bar)}
         {@const sIdx = dates.indexOf(bar.開始)}
         {@const eIdx = dates.indexOf(bar.終了)}
-        {@const sCol = sIdx + 2}
-        {@const eCol = eIdx + 2}
+        {@const sCol = sIdx + 3}
+        {@const eCol = eIdx + 3}
         {#each days as d, di (d)}
           {@const col = colIdxOf(d)}
           {@const state = bar.日別?.[d] ?? '全日'}
@@ -347,7 +349,7 @@
     {/each}
 
     <!-- ＋/-列の行 -->
-    <div class="cell labelcell sticky-l ctrl-row" style="grid-column: 1; grid-row: {ctrlRow};">
+    <div class="cell labelcell sticky-l1 ctrl-row" style="grid-column: 1 / 3; grid-row: {ctrlRow};">
       <div class="ctrls">
         <button class="mini" onclick={addBand}>＋列追加</button>
         {#if block.バンド.length > 1}
@@ -356,20 +358,33 @@
       </div>
     </div>
     {#each dates as d, i (d)}
-      <div class="cell ctrl-row" style="grid-column: {i + 2}; grid-row: {ctrlRow};"></div>
+      <div class="cell ctrl-row" style="grid-column: {i + 3}; grid-row: {ctrlRow};"></div>
     {/each}
-    <div class="cell ctrl-row" style="grid-column: {dates.length + 2}; grid-row: {ctrlRow};"></div>
     <div class="cell ctrl-row" style="grid-column: {dates.length + 3}; grid-row: {ctrlRow};"></div>
+    <div class="cell ctrl-row" style="grid-column: {dates.length + 4}; grid-row: {ctrlRow};"></div>
 
     <!-- 固定行 -->
     {#each FIXED_KEYS as f (f.key)}
       {@const startRow = fixedRowStart(f.key)}
       {@const N = block.固定行数[f.key]}
+
+      <!-- 項目名セル（rowspan: 全サブ行を縦断） -->
+      {#if f.key === '人員'}
+        <!-- 人員: col 1 のみ（サブラベル列は別） -->
+        <div class="cell key-cell sticky-l1 muted-cell" style="grid-column: 1; grid-row: {startRow} / span {N};">
+          <span class="key-text">{f.label}</span>
+        </div>
+      {:else}
+        <!-- 他: col 1+2 をマージ（サブラベル無し） -->
+        <div class="cell key-cell-wide sticky-l1 muted-cell" style="grid-column: 1 / 3; grid-row: {startRow} / span {N};">
+          <span class="key-text">{f.label}</span>
+        </div>
+      {/if}
+
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
-        <!-- ラベルセル：左に項目名(32px固定)、右にサブ行ラベル(人員のみ) -->
-        <div class="cell label-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
-          <span class="key-text">{si === 0 ? f.label : ''}</span>
-          {#if f.key === '人員'}
+        {#if f.key === '人員'}
+          <!-- 人員のサブラベルセル（col 2） -->
+          <div class="cell sub-label-cell sticky-l2 muted-cell" style="grid-column: 2; grid-row: {startRow + si};">
             <input
               type="text"
               class="sub-label-input"
@@ -378,15 +393,15 @@
               placeholder={si === 0 ? '自社' : `外注${si > 1 ? si : ''}`}
               aria-label={`${f.label}${si+1}のサブ行ラベル`}
             />
-          {/if}
-        </div>
+          </div>
+        {/if}
         {#each dates as d, i (d)}
           {@const e = getEntry(d, f.key, si)}
           {@const suffix = cellSuffix(f.key, e.区分)}
           {@const color = cellColor(f.key, e.区分, block.固定行ラベル[f.key][si])}
           <button
             class="cell day-cell {dayClass(d)}"
-            style="grid-column: {i + 2}; grid-row: {startRow + si};"
+            style="grid-column: {i + 3}; grid-row: {startRow + si};"
             disabled={!anyBandLabeled}
             onclick={() => onEditCell(d, f.key, si)}
             aria-label={`${d} ${f.label}${N > 1 ? si+1 : ''}`}
@@ -396,8 +411,8 @@
             {/if}
           </button>
         {/each}
-        <div class="cell remark muted-cell" style="grid-column: {dates.length + 2}; grid-row: {startRow + si};"></div>
-        <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};">
+        <div class="cell remark muted-cell" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
+        <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" style="grid-column: {dates.length + 4}; grid-row: {startRow + si};">
           {#if f.key === '人員'}
             {@const s = sumPerson(si)}
             {s > 0 ? s : ''}
@@ -407,7 +422,7 @@
 
       {#if f.多}
         {@const ctrlRowOfThisFixed = startRow + N}
-        <div class="cell labelcell sticky-l ctrl-row-fixed muted-cell" style="grid-column: 1; grid-row: {ctrlRowOfThisFixed};">
+        <div class="cell labelcell sticky-l1 ctrl-row-fixed muted-cell" style="grid-column: 1 / 3; grid-row: {ctrlRowOfThisFixed};">
           <div class="ctrls">
             <button class="mini" onclick={() => addFixed(f.key)}>＋{f.label}</button>
             {#if N > 1}
@@ -416,10 +431,10 @@
           </div>
         </div>
         {#each dates as d, i (d)}
-          <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {i + 2}; grid-row: {ctrlRowOfThisFixed};"></div>
+          <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {i + 3}; grid-row: {ctrlRowOfThisFixed};"></div>
         {/each}
-        <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {dates.length + 2}; grid-row: {ctrlRowOfThisFixed};"></div>
         <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {dates.length + 3}; grid-row: {ctrlRowOfThisFixed};"></div>
+        <div class="cell ctrl-row-fixed muted-cell" style="grid-column: {dates.length + 4}; grid-row: {ctrlRowOfThisFixed};"></div>
       {/if}
     {/each}
   </div>
@@ -471,14 +486,20 @@
   .head .dnum { font-size: 14px; }
   .head.holiday { background: var(--c-holiday); }
 
-  .sticky-l {
+  .sticky-l1 {
     position: sticky;
     left: 0;
     z-index: 3;
     background: #fff;
+  }
+  .sticky-l2 {
+    position: sticky;
+    left: var(--kw);
+    z-index: 3;
+    background: #f8f9fa;
     border-right: 2px solid var(--c-border);
   }
-  .head.sticky-l { z-index: 5; background: #f3f4f6; }
+  .head.sticky-l1 { z-index: 5; background: #f3f4f6; border-right: 2px solid var(--c-border); }
 
   .labelcell {
     padding: 2px 6px;
@@ -537,36 +558,32 @@
     border-color: #6b7280;
     color: #6b7280;
   }
-  /* バーラベル：バー全範囲を覆う別グリッドアイテム。はみ出さない（overflow:hidden） */
+  /* バーラベル：バー範囲を覆う別グリッドアイテム。
+     セル幅は max-content で広がるため overflow させない */
   .bar-label {
     align-self: center;
     min-height: 32px;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 4px;
     padding: 0 6px;
     pointer-events: none;
     z-index: 4;
-    overflow: hidden;
     background: transparent;
+    white-space: nowrap;
   }
   .bar-main {
     font-weight: 600;
     font-size: 12px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 0 0 auto;
   }
   .bar-sub {
     font-size: 10px;
     color: var(--c-muted);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: 0 0 auto;
   }
   .bar-h {
     font-size: 9px;
@@ -626,26 +643,34 @@
   .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
   .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
 
-  /* 固定行ラベル: 左に項目名(32px) + 右にサブラベル(可変)。全行・全項目で同じ列構造 */
-  .label-fixed {
+  /* 項目名セル（人員のみ col 1、他は col 1+2 をマージ。rowspan で全サブ行を縦断） */
+  .key-cell, .key-cell-wide {
     background: #f8f9fa;
-    border-right: 2px solid var(--c-border);
     border-bottom: 1px solid var(--c-border);
-    min-height: 30px;
-    padding: 0 4px;
-    display: grid;
-    grid-template-columns: 32px 1fr;
+    padding: 0 6px;
+    display: flex;
     align-items: center;
-    column-gap: 2px;
+    justify-content: flex-start;
+    min-height: 30px;
   }
-  .label-fixed .key-text {
-    font-size: 11px;
+  .key-cell-wide {
+    border-right: 2px solid var(--c-border);
+  }
+  .key-text {
+    font-size: 12px;
     font-weight: 700;
     color: var(--c-fg);
     text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  /* サブラベルセル（人員のみ） */
+  .sub-label-cell {
+    background: #f8f9fa;
+    border-bottom: 1px solid var(--c-border);
+    border-right: 2px solid var(--c-border);
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    min-height: 30px;
   }
   .sub-label-input {
     min-width: 0;

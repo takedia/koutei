@@ -321,11 +321,12 @@ function setMetaRow(ws, r, items, totalCols) {
 }
 
 /**
- * バーのバルーン（コメント）テキスト：補足と時間のみ（ラベルなし）
+ * バーのバルーン（コメント）テキスト：工種＋補足＋時間＋半日 等
  * @param {import('../types.js').Bar} bar
  */
 function buildBarNote(bar) {
   const parts = [];
+  parts.push(bar.ラベル);
   if (bar.サブラベル) parts.push(bar.サブラベル);
   const total = calcBarHours(bar);
   if (total) parts.push(`${total}h`);
