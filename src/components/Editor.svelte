@@ -38,6 +38,7 @@
   let cellEditorKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
   let cellEditorKbnType = $state(/** @type {'人員'|'重機等'|null} */ (null));
   let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|'回送プリセット'|null} */ (null));
+  let cellEditorNumericOnly = $state(false);
   /** @type {(v: string, kbn: '自社'|'リース'|'外注') => void} */
   let cellEditorCb = $state(() => {});
 
@@ -131,9 +132,9 @@
    */
   function openCellEditor(date, key, subIdx) {
     if (!block) return;
-    /** @type {Record<string, {kbn: '人員'|'重機等'|null, preset: '重機プリセット'|'車両プリセット'|'回送プリセット'|null}>} */
+    /** @type {Record<string, {kbn: '人員'|'重機等'|null, preset: '重機プリセット'|'車両プリセット'|'回送プリセット'|null, numericOnly?: boolean}>} */
     const meta = {
-      '人員':   { kbn: null,     preset: null },          // 人員はサブ行ラベルが区分の役割
+      '人員':   { kbn: null,     preset: null, numericOnly: true },  // 人員は 0〜20 の数字選択
       '重機':   { kbn: '重機等', preset: '重機プリセット' },
       '回送':   { kbn: '重機等', preset: '回送プリセット' },
       '車両':   { kbn: '重機等', preset: '車両プリセット' },
@@ -154,6 +155,7 @@
     cellEditorKbn = /** @type {any} */ (entry.区分);
     cellEditorKbnType = /** @type {any} */ (meta[key].kbn);
     cellEditorPresetKey = meta[key].preset;
+    cellEditorNumericOnly = !!meta[key].numericOnly;
     cellEditorCb = (v, kbn) => {
       if (!block) return;
       block.日次セル[date][key][subIdx] = { 値: v, 区分: kbn };
@@ -317,6 +319,7 @@
   区分={cellEditorKbn}
   区分種別={cellEditorKbnType}
   presetKey={cellEditorPresetKey}
+  numericOnly={cellEditorNumericOnly}
   onSave={cellEditorCb}
   onCancel={() => cellEditorOpen = false}
 />

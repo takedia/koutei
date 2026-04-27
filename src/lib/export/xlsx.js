@@ -223,7 +223,17 @@ export async function exportKouteiAsXlsx(koutei) {
         keyCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
       keyCell.fill = solidFill(COLOR.固定行背);
-      keyCell.border = boxBorder(BORDER_THIN());
+      // 人員の場合: 項目名セルとサブラベルセルの間の縦線を消して
+      // 「人員」が「自社/外注」を内包する見た目を強調
+      if (key === '人員') {
+        keyCell.border = {
+          top:    BORDER_THIN(),
+          left:   BORDER_THIN(),
+          bottom: BORDER_THIN()
+        };
+      } else {
+        keyCell.border = boxBorder(BORDER_THIN());
+      }
 
       // サブラベルセル（人員のみ表示、左寄せ）
       const subCell = ws.getCell(r, COL_SUBLABEL);
@@ -233,7 +243,15 @@ export async function exportKouteiAsXlsx(koutei) {
         subCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
       subCell.fill = solidFill(COLOR.固定行背);
-      subCell.border = boxBorder(BORDER_THIN());
+      if (key === '人員') {
+        subCell.border = {
+          top:    BORDER_THIN(),
+          right:  BORDER_THIN(),
+          bottom: BORDER_THIN()
+        };
+      } else {
+        subCell.border = boxBorder(BORDER_THIN());
+      }
 
       // 値 + 接尾辞（[リース]/[外注]）
       for (let i = 0; i < N; i++) {

@@ -9,10 +9,11 @@
    *   区分: '自社'|'リース'|'外注',
    *   区分種別: '人員'|'重機等'|null,
    *   presetKey: '重機プリセット'|'車両プリセット'|'回送プリセット'|null,
+   *   numericOnly?: boolean,
    *   onSave: (v: string, kbn: '自社'|'リース'|'外注') => void,
    *   onCancel: () => void
    * }} */
-  let { open, title, value, 区分, 区分種別, presetKey, onSave, onCancel } = $props();
+  let { open, title, value, 区分, 区分種別, presetKey, numericOnly, onSave, onCancel } = $props();
 
   let local = $state('');
   let localKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
@@ -100,35 +101,44 @@
       </header>
 
       <div class="body">
-        <!-- svelte-ignore a11y_autofocus -->
-        <input type="text" bind:value={local} autofocus style="color: {kbnColor(localKbn)}; font-weight: 600;" />
-
-        {#if kbnOptions.length}
-          <div class="kbn">
-            <span class="caption">区分</span>
-            <div class="seg">
-              {#each kbnOptions as k (k)}
-                <button class:on={localKbn === k} onclick={() => localKbn = k} style="--kc: {kbnColor(k)};">{k}</button>
-              {/each}
-            </div>
+        {#if numericOnly}
+          <div class="num-display">{local || '0'}</div>
+          <div class="num-grid">
+            {#each Array.from({length: 21}, (_, i) => i) as n (n)}
+              <button class:on={local === String(n)} onclick={() => local = String(n)}>{n}</button>
+            {/each}
           </div>
-        {/if}
+        {:else}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input type="text" bind:value={local} autofocus style="color: {kbnColor(localKbn)}; font-weight: 600;" />
 
-        {#if presets.length}
-          <div class="presets">
-            <p class="caption">プリセット（タップで入力）</p>
-            <div class="grid">
-              {#each presets as p (p)}
-                <button onclick={() => pick(p)}>{p}</button>
-              {/each}
+          {#if kbnOptions.length}
+            <div class="kbn">
+              <span class="caption">区分</span>
+              <div class="seg">
+                {#each kbnOptions as k (k)}
+                  <button class:on={localKbn === k} onclick={() => localKbn = k} style="--kc: {kbnColor(k)};">{k}</button>
+                {/each}
+              </div>
             </div>
-          </div>
+          {/if}
+
+          {#if presets.length}
+            <div class="presets">
+              <p class="caption">プリセット（タップで入力）</p>
+              <div class="grid">
+                {#each presets as p (p)}
+                  <button onclick={() => pick(p)}>{p}</button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         {/if}
       </div>
 
       <footer>
         <button class="ghost" onclick={clear}>クリア</button>
-        {#if presetKey && local.trim() && !presets.includes(local.trim())}
+        {#if !numericOnly && presetKey && local.trim() && !presets.includes(local.trim())}
           <button class="primary" onclick={addPreset}>＋辞書に追加して入力</button>
         {:else}
           <button class="primary save" onclick={save}>入力</button>
@@ -204,6 +214,32 @@
     background: #f9fafb;
     font-size: 13px;
     min-height: 38px;
+  }
+  .num-display {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--c-accent);
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 12px 0;
+  }
+  .num-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .num-grid button {
+    padding: 0;
+    min-height: 44px;
+    font-size: 16px;
+    font-weight: 600;
+    background: #f9fafb;
+  }
+  .num-grid button.on {
+    background: var(--c-accent);
+    color: #fff;
+    border-color: var(--c-accent);
   }
   footer {
     display: flex;
