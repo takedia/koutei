@@ -214,22 +214,22 @@ export async function exportKouteiAsXlsx(koutei) {
 
       const subLabel = block.固定行ラベル?.[key]?.[si] ?? '';
 
-      // 項目名セル
+      // 項目名セル（左寄せ）
       const keyCell = ws.getCell(r, COL_KEY);
       if (si === 0) {
         keyCell.value = key;
         keyCell.font = { bold: true, size: 11 };
-        keyCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        keyCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
       keyCell.fill = solidFill(COLOR.固定行背);
       keyCell.border = boxBorder(BORDER_THIN());
 
-      // サブラベルセル（人員のみ表示、他は空）
+      // サブラベルセル（人員のみ表示、左寄せ）
       const subCell = ws.getCell(r, COL_SUBLABEL);
       if (key === '人員') {
         subCell.value = subLabel;
         subCell.font = { bold: true, size: 10 };
-        subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        subCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
       }
       subCell.fill = solidFill(COLOR.固定行背);
       subCell.border = boxBorder(BORDER_THIN());
@@ -328,21 +328,28 @@ function styleHeaderCell(cell, text) {
  */
 function setMetaRow(ws, r, items, totalCols) {
   const colsPer = Math.floor(totalCols / items.length);
+  const LABEL_COLS = 2;   // ラベルは 2 セル分（"発注者" 等の文字が切れないように）
   let mc = 1;
   for (let i = 0; i < items.length; i++) {
     const [label, value] = items[i];
-    const lab = ws.getCell(r, mc);
+    const labStart = mc;
+    const labEnd = Math.min(mc + LABEL_COLS - 1, mc + colsPer - 2);
+    const valStart = labEnd + 1;
+    const valEnd = i === items.length - 1 ? totalCols : (mc + colsPer - 1);
+
+    const lab = ws.getCell(r, labStart);
     lab.value = label;
     lab.font = { bold: true, color: { argb: 'FF6B7280' }, size: 10 };
-    lab.alignment = { horizontal: 'right', vertical: 'middle' };
-    lab.border = boxBorder(BORDER_THIN());
+    lab.alignment = { horizontal: 'center', vertical: 'middle' };
+    for (let c = labStart; c <= labEnd; c++) {
+      ws.getCell(r, c).border = boxBorder(BORDER_THIN());
+    }
+    if (labStart < labEnd) ws.mergeCells(r, labStart, r, labEnd);
 
-    const valStart = mc + 1;
-    const valEnd = i === items.length - 1 ? totalCols : (mc + colsPer - 1);
     const val = ws.getCell(r, valStart);
     val.value = value;
     val.font = { size: 11 };
-    val.alignment = { horizontal: 'left', vertical: 'middle' };
+    val.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
     for (let c = valStart; c <= valEnd; c++) {
       ws.getCell(r, c).border = boxBorder(BORDER_THIN());
     }
