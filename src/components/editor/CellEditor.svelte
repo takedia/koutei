@@ -103,6 +103,16 @@
         <!-- svelte-ignore a11y_autofocus -->
         <input type="text" bind:value={local} autofocus style="color: {kbnColor(localKbn)}; font-weight: 600;" />
 
+        {#if kbnOptions.length}
+          <div class="kbn">
+            <span class="caption">区分</span>
+            <div class="seg">
+              {#each kbnOptions as k (k)}
+                <button class:on={localKbn === k} onclick={() => localKbn = k} style="--kc: {kbnColor(k)};">{k}</button>
+              {/each}
+            </div>
+          </div>
+        {/if}
 
         {#if presets.length}
           <div class="presets">

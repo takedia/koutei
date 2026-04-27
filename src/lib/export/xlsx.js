@@ -122,7 +122,7 @@ export async function exportKouteiAsXlsx(koutei) {
   // ──── バンド行
   for (const band of block.バンド) {
     r++;
-    ws.getRow(r).height = 40;
+    ws.getRow(r).height = 50;   // 3行テキスト + 中央線 のため少し高く
 
     // ラベル列
     const labCell = ws.getCell(r, COL_LABEL);
@@ -138,7 +138,7 @@ export async function exportKouteiAsXlsx(koutei) {
       if (isHoliday(dates[i])) cell.fill = solidFill(COLOR.休日塗り);
     }
 
-    // バー描画（横線オブジェクトを画像として埋め込み）
+    // バー描画（横線オブジェクト + セル結合 + 上下に文字）
     for (const bar of band.バー) {
       const sIdx = dates.indexOf(bar.開始);
       const eIdx = dates.indexOf(bar.終了);
@@ -146,15 +146,32 @@ export async function exportKouteiAsXlsx(koutei) {
       const sCol = COL_DATE_START + sIdx;
       const eCol = COL_DATE_START + eIdx;
       const imageId = bar.休工 ? kyukoBarId : normalBarId;
+
+      // セル結合（テキスト用）
+      if (sCol < eCol) ws.mergeCells(r, sCol, r, eCol);
+      const m = ws.getCell(r, sCol);
+      const totalH = calcBarHours(bar);
+      const subParts = [];
+      if (bar.サブラベル) subParts.push(bar.サブラベル);
+      if (totalH) subParts.push(`${totalH}h`);
+      const subLine = subParts.join(' ');
+      // 3行レイアウト: 上=ラベル / 中=空き(画像オーバーレイ) / 下=サブ
+      m.value = `${bar.ラベル}\n \n${subLine}`;
+      m.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      m.font = { size: 9 };
+
+      // 横線画像を中央に配置（端を少し空けて）
       ws.addImage(imageId, {
-        tl: { col: sCol - 1 + 0.05, row: r - 1 + 0.42 },
-        br: { col: eCol - 0.05,     row: r - 1 + 0.62 }
+        tl: { col: sCol - 1 + 0.08, row: r - 1 + 0.45 },
+        br: { col: eCol - 0.08,     row: r - 1 + 0.62 }
       });
-      // バルーン（コメント）：マウスオーバーで詳細を確認
-      const note = buildBarNote(bar);
-      for (let c = sCol; c <= eCol; c++) {
-        ws.getCell(r, c).note = note;
-      }
+
+      // バルーン（コメント）。構造化フォーマットで明示
+      m.note = {
+        texts: [{ text: buildBarNote(bar), font: { size: 10, name: 'Yu Gothic UI' } }],
+        margins: { insetmode: 'auto' },
+        editAs: 'twoCells'
+      };
     }
 
     // 備考
@@ -305,14 +322,14 @@ function buildBarNote(bar) {
 function makeBarImageBase64(休工) {
   const canvas = document.createElement('canvas');
   canvas.width = 600;
-  canvas.height = 18;
+  canvas.height = 14;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   if (休工) {
     // 灰色 + 斜線（休工）
-    ctx.fillStyle = '#D1D5DB';
+    ctx.fillStyle = '#E5E7EB';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#6B7280';
+    ctx.strokeStyle = '#9CA3AF';
     ctx.lineWidth = 1;
     for (let x = -canvas.height; x < canvas.width + canvas.height; x += 6) {
       ctx.beginPath();
@@ -320,13 +337,12 @@ function makeBarImageBase64(休工) {
       ctx.lineTo(x + canvas.height, canvas.height);
       ctx.stroke();
     }
-    // 上下に枠線
-    ctx.strokeStyle = '#1A1A1A';
+    ctx.strokeStyle = '#6B7280';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
   } else {
-    // 黒の太い横線
-    ctx.fillStyle = '#1A1A1A';
+    // 薄めグレー（黒よりやさしく、文字と重ならないトーン）
+    ctx.fillStyle = '#6B7280';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   return canvas.toDataURL('image/png').split(',')[1];

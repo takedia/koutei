@@ -127,9 +127,9 @@
    */
   function openCellEditor(date, key, subIdx) {
     if (!block) return;
-    /** @type {Record<string, {kbn: '人員'|'重機等', preset: '重機プリセット'|'車両プリセット'|'回送プリセット'|null}>} */
+    /** @type {Record<string, {kbn: '人員'|'重機等'|null, preset: '重機プリセット'|'車両プリセット'|'回送プリセット'|null}>} */
     const meta = {
-      '人員':   { kbn: '人員',   preset: null },
+      '人員':   { kbn: null,     preset: null },          // 人員はサブ行ラベルが区分の役割
       '重機':   { kbn: '重機等', preset: '重機プリセット' },
       '回送':   { kbn: '重機等', preset: '回送プリセット' },
       '車両':   { kbn: '重機等', preset: '車両プリセット' },

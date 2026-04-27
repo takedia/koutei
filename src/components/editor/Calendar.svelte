@@ -170,6 +170,22 @@
     return '#1a1a1a';
   }
 
+  /** 非人員: 区分に応じて [リース]/[外注] を付与、自社は無印 */
+  function cellSuffix(/** @type {string} */ key, /** @type {string} */ kbn) {
+    if (key === '人員') return '';   // 人員はサブ行ラベルが区分の代わり
+    if (kbn === 'リース') return '[リース]';
+    if (kbn === '外注')   return '[外注]';
+    return '';
+  }
+  /** セル文字色：人員はサブ行ラベル基準、他は cell.区分 基準 */
+  function cellColor(/** @type {string} */ key, /** @type {string} */ kbn, /** @type {string} */ subLabel) {
+    if (key === '人員') {
+      if (subLabel && (subLabel === '外注' || subLabel.startsWith('外注'))) return '#dc2626';
+      return '#1a1a1a';
+    }
+    return kbnColor(kbn);
+  }
+
   function isBandEmpty(/** @type {import('../../lib/types.js').Band} */ band) {
     return !band.ラベル || band.ラベル.trim() === '';
   }
@@ -328,24 +344,28 @@
       {@const startRow = fixedRowStart(f.key)}
       {@const N = block.固定行数[f.key]}
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
-        <!-- ラベルセル：先頭サブ行は f.label、各サブ行ラベルが直下に表示 -->
-        <div class="cell labelcell-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
-          {#if si === 0}
-            <span class="fixed-key">{f.label}</span>
-          {/if}
-          <input
-            type="text"
-            class="sub-label-input"
-            bind:value={block.固定行ラベル[f.key][si]}
-            oninput={onChange}
-            placeholder={si === 0 ? '自社' : (f.key === '人員' ? '外注' : 'リース')}
-            aria-label={`${f.label}${si+1}のサブ行ラベル`}
-          />
-        </div>
+        <!-- ラベルセル -->
+        {#if f.key === '人員'}
+          <div class="cell labelcell-fixed sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
+            {#if si === 0}<span class="fixed-key">{f.label}</span>{/if}
+            <input
+              type="text"
+              class="sub-label-input"
+              bind:value={block.固定行ラベル[f.key][si]}
+              oninput={onChange}
+              placeholder={si === 0 ? '自社' : `外注${si > 1 ? si : ''}`}
+              aria-label={`${f.label}${si+1}のサブ行ラベル`}
+            />
+          </div>
+        {:else}
+          <div class="cell labelcell sticky-l muted-cell" style="grid-column: 1; grid-row: {startRow + si};">
+            {#if si === 0}<span class="key-only">{f.label}</span>{/if}
+          </div>
+        {/if}
         {#each dates as d, i (d)}
           {@const e = getEntry(d, f.key, si)}
-          {@const subLabel = block.固定行ラベル[f.key][si] ?? ''}
-          {@const showSuffix = e.値 && subLabel && subLabel !== '自社'}
+          {@const suffix = cellSuffix(f.key, e.区分)}
+          {@const color = cellColor(f.key, e.区分, block.固定行ラベル[f.key][si])}
           <button
             class="cell day-cell {dayClass(d)}"
             style="grid-column: {i + 2}; grid-row: {startRow + si};"
@@ -354,7 +374,7 @@
             aria-label={`${d} ${f.label}${N > 1 ? si+1 : ''}`}
           >
             {#if e.値}
-              <span class="day-val" style="color: {kbnColor(e.区分)}">{e.値}{showSuffix ? `(${subLabel})` : ''}</span>
+              <span class="day-val" style="color: {color}">{e.値}{suffix}</span>
             {/if}
           </button>
         {/each}
@@ -610,6 +630,10 @@
     font-weight: 700;
     color: var(--c-fg);
     flex: 0 0 auto;
+  }
+  .key-only {
+    font-size: 12px;
+    font-weight: 600;
   }
   .sub-label-input {
     flex: 1;
