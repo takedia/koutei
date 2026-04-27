@@ -39,6 +39,39 @@
     }
   });
 
+  // ホイール（数値ピッカー）
+  const ITEM_H = 48;
+  let wheelEl = $state(/** @type {HTMLDivElement|null} */ (null));
+  let scrollTimer;
+
+  function onWheelScroll() {
+    if (!wheelEl) return;
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      if (!wheelEl) return;
+      const idx = Math.round(wheelEl.scrollTop / ITEM_H);
+      const v = String(Math.max(0, Math.min(20, idx)));
+      if (local !== v) local = v;
+    }, 80);
+  }
+
+  function snapTo(/** @type {number} */ n) {
+    if (!wheelEl) return;
+    wheelEl.scrollTo({ top: n * ITEM_H, behavior: 'smooth' });
+    local = String(n);
+  }
+
+  // open になったらスクロール位置を local に合わせる
+  $effect(() => {
+    if (open && numericOnly && wheelEl) {
+      requestAnimationFrame(() => {
+        if (!wheelEl) return;
+        const idx = parseInt(local) || 0;
+        wheelEl.scrollTop = Math.max(0, Math.min(20, idx)) * ITEM_H;
+      });
+    }
+  });
+
   onMount(async () => {
     settings = await loadSettings();
     mounted = true;
@@ -102,11 +135,17 @@
 
       <div class="body">
         {#if numericOnly}
-          <div class="num-display">{local || '0'}</div>
-          <div class="num-grid">
-            {#each Array.from({length: 21}, (_, i) => i) as n (n)}
-              <button class:on={local === String(n)} onclick={() => local = String(n)}>{n}</button>
-            {/each}
+          <div class="wheel-wrap">
+            <div class="wheel-list" bind:this={wheelEl} onscroll={onWheelScroll}>
+              <div class="wheel-spacer"></div>
+              {#each Array.from({length: 21}, (_, i) => i) as n (n)}
+                <div class="wheel-item" class:active={local === String(n)} onclick={() => snapTo(n)} role="button" tabindex="0">{n}</div>
+              {/each}
+              <div class="wheel-spacer"></div>
+            </div>
+            <div class="wheel-selector"></div>
+            <div class="wheel-fade-top"></div>
+            <div class="wheel-fade-bot"></div>
           </div>
         {:else}
           <!-- svelte-ignore a11y_autofocus -->
@@ -215,31 +254,65 @@
     font-size: 13px;
     min-height: 38px;
   }
-  .num-display {
-    text-align: center;
-    font-size: 32px;
-    font-weight: 700;
+  /* ホイール式数値ピッカー（誕生日選択風） */
+  .wheel-wrap {
+    position: relative;
+    height: 240px;
+    overflow: hidden;
+    user-select: none;
+    background: #fff;
+  }
+  .wheel-list {
+    height: 100%;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .wheel-list::-webkit-scrollbar { display: none; }
+  .wheel-spacer { height: 96px; }
+  .wheel-item {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: center;
+    font-size: 24px;
+    font-weight: 500;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: color 0.15s, font-size 0.15s, font-weight 0.15s;
+  }
+  .wheel-item.active {
     color: var(--c-accent);
-    background: #f3f4f6;
-    border-radius: 8px;
-    padding: 12px 0;
+    font-weight: 700;
+    font-size: 32px;
   }
-  .num-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+  .wheel-selector {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 96px;
+    height: 48px;
+    border-top: 2px solid var(--c-accent);
+    border-bottom: 2px solid var(--c-accent);
+    background: rgba(31, 111, 235, 0.06);
+    pointer-events: none;
   }
-  .num-grid button {
-    padding: 0;
-    min-height: 44px;
-    font-size: 16px;
-    font-weight: 600;
-    background: #f9fafb;
+  .wheel-fade-top, .wheel-fade-bot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 60px;
+    pointer-events: none;
   }
-  .num-grid button.on {
-    background: var(--c-accent);
-    color: #fff;
-    border-color: var(--c-accent);
+  .wheel-fade-top {
+    top: 0;
+    background: linear-gradient(to bottom, #fff 30%, transparent);
+  }
+  .wheel-fade-bot {
+    bottom: 0;
+    background: linear-gradient(to top, #fff 30%, transparent);
   }
   footer {
     display: flex;

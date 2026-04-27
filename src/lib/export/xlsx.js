@@ -55,7 +55,8 @@ export async function exportKouteiAsXlsx(koutei) {
       fitToHeight: 1,
       margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 }
     },
-    views: [{ state: 'frozen', ySplit: 5, xSplit: 1 }]   // ヘッダ・項目列固定
+    // showGridLines: Excel のデフォルト薄いグリッド線を非表示にする（罫線のみ表示）
+    views: [{ state: 'frozen', ySplit: 5, xSplit: 2, showGridLines: false }]
   });
 
   // 列構成（HTMLと同じ：項目名 + サブ行ラベル + 日付列 + 備考 + 合計）
