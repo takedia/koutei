@@ -12,13 +12,15 @@
   let url = $state(/** @type {string|null} */ (null));
 
   $effect(() => {
-    if (url) {
-      URL.revokeObjectURL(url);
+    if (!open || !blob) {
       url = null;
+      return;
     }
-    if (open && blob) {
-      url = URL.createObjectURL(blob);
-    }
+    const u = URL.createObjectURL(blob);
+    url = u;
+    return () => {
+      URL.revokeObjectURL(u);
+    };
   });
 </script>
 
