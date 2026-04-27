@@ -16,8 +16,13 @@
 
   $effect(() => {
     if (open && bar) {
-      local = JSON.parse(JSON.stringify(bar));
-      if (!local.日別) local.日別 = {};
+      // 同じ effect 内で `local.日別` を読まない（読むと local が依存に登録され、
+      // 後段の setState() による local.日別 への書き込みで effect が再実行されて
+      // 編集内容がリセットされ、ボタンが効かなくなる）。
+      // そのためプレーンなオブジェクト上で初期化を済ませてから local に代入する。
+      const cloned = JSON.parse(JSON.stringify(bar));
+      if (!cloned.日別) cloned.日別 = {};
+      local = cloned;
     }
   });
 
@@ -34,20 +39,20 @@
   /** @param {string} d @param {'全日'|'AM'|'PM'} s */
   function setState(d, s) {
     if (!local) return;
-    if (!local.日別) local.日別 = {};
-    if (s === '全日') delete local.日別[d];
-    else local.日別[d] = s;
-    local = local;  // reactivity
+    const map = { ...(local.日別 ?? {}) };
+    if (s === '全日') delete map[d];
+    else map[d] = s;
+    local.日別 = map;
   }
   /** @param {'全日'|'AM'|'PM'} s */
   function setAll(s) {
     if (!local) return;
-    if (!local.日別) local.日別 = {};
+    const map = { ...(local.日別 ?? {}) };
     for (const d of days) {
-      if (s === '全日') delete local.日別[d];
-      else local.日別[d] = s;
+      if (s === '全日') delete map[d];
+      else map[d] = s;
     }
-    local = local;
+    local.日別 = map;
   }
 
   let days = $derived(local ? dateRange(local.開始, local.終了) : []);
