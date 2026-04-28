@@ -4,7 +4,8 @@ import { formatRange } from '../utils/date.js';
 
 /**
  * 件名テンプレ内の変数を実値で置換
- * 利用可能変数: {工事番号} {工事名} {期間} {発注者}
+ * 利用可能変数: {工事番号} {工事名} {期間} {発注者} {職長名}
+ * 値が空の変数は空文字に展開され、最後に重複空白を圧縮し前後 trim する。
  * @param {string} template
  * @param {import('../types.js').Koutei} koutei
  * @returns {string}
@@ -15,13 +16,15 @@ export function renderSubject(template, koutei) {
     '{工事番号}': block?.工事番号 || '',
     '{工事名}':   block?.工事名   || '',
     '{期間}':     formatRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了),
-    '{発注者}':   koutei.meta.発注者 || ''
+    '{発注者}':   koutei.meta.発注者 || '',
+    '{職長名}':   block?.職長名   || ''
   };
   let out = template;
   for (const [k, v] of Object.entries(vars)) {
     out = out.split(k).join(v);
   }
-  return out.trim();
+  // 連続スペースを 1 つに圧縮し、前後を trim（職長名等が空でも自然な見た目）
+  return out.replace(/\s+/g, ' ').trim();
 }
 
 /**

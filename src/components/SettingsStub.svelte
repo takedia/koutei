@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { loadSettings, saveSettings } from '../lib/db.js';
+  import { loadSettings, saveSettings, resetSettings } from '../lib/db.js';
   import { screen, toasts } from '../lib/stores.js';
   import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
   import { fetchSharedRecipients, formatRecipientsJson } from '../lib/recipients.js';
@@ -184,6 +184,13 @@
     sharedRecipientsLoading = false;
     toasts.info('共有宛先を再取得しました');
   }
+
+  async function doResetSettings() {
+    if (!confirm('設定を初期化します。\n保存した個人宛先・件名テンプレなど、この端末の設定がすべてリセットされます。\n（工程表データには影響しません）\nよろしいですか？')) return;
+    await resetSettings();
+    s = await loadSettings();
+    toasts.info('設定を初期化しました');
+  }
 </script>
 
 <header>
@@ -202,7 +209,8 @@
       <h2>件名テンプレ</h2>
       <input type="text" bind:value={s.件名テンプレ} />
       <p class="muted small">
-        メール送信時の件名。次の変数が使えます: <code>{'{工事番号}'}</code> <code>{'{工事名}'}</code> <code>{'{期間}'}</code> <code>{'{発注者}'}</code>
+        メール送信時の件名。次の変数が使えます: <code>{'{職長名}'}</code> <code>{'{工事番号}'}</code> <code>{'{工事名}'}</code> <code>{'{期間}'}</code> <code>{'{発注者}'}</code>
+        <br />（値が空の変数は空文字に置き換わり、前後の余分な空白は自動で除去されます）
       </p>
     </section>
 
@@ -426,6 +434,18 @@
             />
             <button onclick={addRecipient}>＋追加</button>
           </div>
+        </div>
+
+        <!-- 設定の初期化（端末ローカル） -->
+        <div class="admin-sub">
+          <h3>設定を初期化</h3>
+          <p class="muted small">
+            この端末の設定（件名テンプレ・個人宛先・各種プリセット）を破棄して、
+            アプリ標準のデフォルトに戻します。コードの defaultSettings を変更した
+            のに反映されない時にこちらを実行してください。
+            <strong>工程表データには影響しません。</strong>
+          </p>
+          <button class="ghost" onclick={doResetSettings}>♻️ 設定を初期化</button>
         </div>
       {/if}
     </section>

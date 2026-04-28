@@ -208,6 +208,13 @@ export async function saveSettings(settings) {
   await set('settings', JSON.parse(JSON.stringify(settings)));
 }
 
+/**
+ * 設定を初期化（IndexedDB から削除し、次回 loadSettings で defaults から作り直し）
+ */
+export async function resetSettings() {
+  await del('settings');
+}
+
 /** @returns {import('./types.js').設定} */
 function defaultSettings() {
   return {
@@ -217,7 +224,7 @@ function defaultSettings() {
     重機プリセット: ['0.7BH', '0.45BH', '0.25BH','0.15BH', 'ラフター25t', 'ラフター50t'],
     車両プリセット: ['10tD','4tD','3tD', '2tD', '4tユニック'],
     回送プリセット: ['10tセルフ', '20tセルフ', '特車'],
-    件名テンプレ: '[工程表] {工事番号} {期間}',
+    件名テンプレ: '{職長名} [工程表] {工事番号} {期間}',
     自分のリポ: null
   };
 }
