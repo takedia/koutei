@@ -57,10 +57,15 @@
       <section>
         <h2>{month.replace('-', '年')}月</h2>
         <ul>
-          {#each entries as e (e.id)}
+          {#each entries as e (`${month}-${e.id}`)}
             <li>
               <button class="row" onclick={() => open(e.id)}>
-                <div class="title">{e.工事名表示}</div>
+                <div class="title">
+                  {e.工事名表示}
+                  {#if e.終了月 && e.終了月 !== e.月}
+                    <span class="span-badge" title="月をまたぐ工程表">月またぎ</span>
+                  {/if}
+                </div>
                 <div class="sub">
                   <span class="badge">{e.提出種別}</span>
                   <span>{e.期間表示}</span>
@@ -163,6 +168,18 @@
     padding: 1px 6px;
     font-size: 12px;
     font-weight: 600;
+  }
+  .span-badge {
+    display: inline-block;
+    margin-left: 6px;
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fdba74;
+    border-radius: 999px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
   }
   .del {
     background: transparent;

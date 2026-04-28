@@ -16,7 +16,8 @@ const PREFIX = 'koutei:';
  * @typedef {Object} IndexEntry
  * @property {string} id
  * @property {string} 工事名表示    // 複数工事をまとめた表示名（"工事A 他1件" 等）
- * @property {string} 月            // YYYY-MM
+ * @property {string} 月            // YYYY-MM（開始月。後方互換のため残置）
+ * @property {string} [終了月]      // YYYY-MM（終了月。月をまたぐ時に開始月と異なる）
  * @property {string} 期間表示      // "2026-04-22 - 05-05"
  * @property {'2週'|'月間'} 提出種別
  * @property {string} 最終更新      // ISO datetime
@@ -24,23 +25,43 @@ const PREFIX = 'koutei:';
 
 /**
  * 一覧を取得（更新日降順）
+ * 旧形式（終了月なし）のエントリは本体から補完して移行する。
  * @returns {Promise<IndexEntry[]>}
  */
 export async function loadIndex() {
   /** @type {IndexEntry[]} */
   const idx = (await get('index')) ?? [];
+  // 終了月が無いエントリを本体から補完（月またぎ表示のため）
+  let mutated = false;
+  for (const e of idx) {
+    if (!e.終了月) {
+      try {
+        const koutei = /** @type {any} */ (await get(PREFIX + e.id));
+        const end = koutei?.meta?.対象期間?.終了;
+        if (typeof end === 'string' && end.length >= 7) {
+          e.終了月 = end.slice(0, 7);
+          mutated = true;
+        }
+      } catch {}
+    }
+  }
+  if (mutated) await set('index', idx);
   return [...idx].sort((a, b) => (a.最終更新 < b.最終更新 ? 1 : -1));
 }
 
-/** 一覧を月別グルーピング */
+/** 一覧を月別グルーピング（月をまたぐ工程表は両方の月に出る） */
 export async function loadIndexByMonth() {
   const idx = await loadIndex();
   /** @type {Map<string, IndexEntry[]>} */
   const m = new Map();
   for (const e of idx) {
-    const arr = m.get(e.月) ?? [];
-    arr.push(e);
-    m.set(e.月, arr);
+    const months = new Set([e.月]);
+    if (e.終了月 && e.終了月 !== e.月) months.add(e.終了月);
+    for (const mm of months) {
+      const arr = m.get(mm) ?? [];
+      arr.push(e);
+      m.set(mm, arr);
+    }
   }
   return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
 }
@@ -99,6 +120,7 @@ async function upsertIndex(koutei) {
     id: koutei.id,
     工事名表示,
     月: koutei.meta.対象期間.開始.slice(0, 7),
+    終了月: koutei.meta.対象期間.終了.slice(0, 7),
     期間表示: `${koutei.meta.対象期間.開始} - ${koutei.meta.対象期間.終了.slice(5)}`,
     提出種別: koutei.meta.提出種別,
     最終更新: koutei.meta.最終更新
@@ -124,6 +146,7 @@ export async function rebuildIndex() {
       id: koutei.id,
       工事名表示: names.length === 0 ? '(無題)' : names.length === 1 ? names[0] : `${names[0]} 他${names.length - 1}件`,
       月: koutei.meta.対象期間.開始.slice(0, 7),
+      終了月: koutei.meta.対象期間.終了.slice(0, 7),
       期間表示: `${koutei.meta.対象期間.開始} - ${koutei.meta.対象期間.終了.slice(5)}`,
       提出種別: koutei.meta.提出種別,
       最終更新: koutei.meta.最終更新

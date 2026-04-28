@@ -17,6 +17,7 @@
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings, saveSettings } from '../lib/db.js';
+  import { fetchSharedRecipients } from '../lib/recipients.js';
   import ExportPreview from './ExportPreview.svelte';
   import MailCompose from './MailCompose.svelte';
   import { isStaleChunkError, reloadOnceForStaleChunk } from '../main.js';
@@ -400,11 +401,21 @@
     try {
       // 添付用にダウンロードまで先に済ませる
       downloadBlob(blob, filename);
-      const settings = await loadSettings();
+      const [settings, shared] = await Promise.all([
+        loadSettings(),
+        fetchSharedRecipients()
+      ]);
       mailFilename = filename;
       mailSubject = renderSubject(settings.件名テンプレ ?? '', koutei);
       mailBody = defaultBody(filename);
-      mailPresets = settings.宛先プリセット ?? [];
+      // 共有 + 個人 をマージ（共有を先頭、メアド重複は共有を優先）
+      const personal = settings.宛先プリセット ?? [];
+      const seen = new Set(shared.map(s => s.メアド.toLowerCase()));
+      const merged = [
+        ...shared,
+        ...personal.filter(p => !seen.has(p.メアド.toLowerCase()))
+      ];
+      mailPresets = merged;
       mailOpen = true;
     } catch (e) {
       handleExportError(e);

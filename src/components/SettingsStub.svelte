@@ -3,10 +3,15 @@
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { screen, toasts } from '../lib/stores.js';
   import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
+  import { fetchSharedRecipients, formatRecipientsJson } from '../lib/recipients.js';
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
   let loadError = $state(/** @type {string|null} */ (null));
+
+  /** @type {{ラベル:string, メアド:string}[]} */
+  let sharedRecipients = $state([]);
+  let sharedRecipientsLoading = $state(true);
 
   onMount(async () => {
     try {
@@ -14,6 +19,13 @@
     } catch (e) {
       console.error('settings load failed', e);
       loadError = String(/** @type {any} */ (e)?.message ?? e);
+    }
+    try {
+      sharedRecipients = await fetchSharedRecipients();
+    } catch (e) {
+      console.error('shared recipients load failed', e);
+    } finally {
+      sharedRecipientsLoading = false;
     }
   });
 
@@ -123,6 +135,55 @@
     if (!s) return;
     s.宛先プリセット = s.宛先プリセット.filter(r => r.メアド !== mail);
   }
+
+  // ── 共有宛先の編集（管理者専用 / GitHub 反映は手動コミット）
+  let sharedNewLabel = $state('');
+  let sharedNewMail = $state('');
+  let sharedDirty = $state(false);
+
+  function addSharedRecipient() {
+    const label = sharedNewLabel.trim();
+    const mail = sharedNewMail.trim();
+    if (!label || !mail) {
+      toasts.error('ラベルとメアドの両方を入力してください');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      toasts.error('メアドの形式が正しくありません');
+      return;
+    }
+    if (sharedRecipients.some(r => r.メアド.toLowerCase() === mail.toLowerCase())) {
+      toasts.error('既に登録されています');
+      return;
+    }
+    sharedRecipients = [...sharedRecipients, { ラベル: label, メアド: mail }];
+    sharedNewLabel = '';
+    sharedNewMail = '';
+    sharedDirty = true;
+  }
+
+  /** @param {string} mail */
+  function removeSharedRecipient(mail) {
+    sharedRecipients = sharedRecipients.filter(r => r.メアド !== mail);
+    sharedDirty = true;
+  }
+
+  async function copySharedJson() {
+    try {
+      await navigator.clipboard.writeText(formatRecipientsJson(sharedRecipients));
+      toasts.info('共有宛先 JSON をコピーしました');
+    } catch {
+      toasts.error('コピー失敗');
+    }
+  }
+
+  async function reloadSharedRecipients() {
+    sharedRecipientsLoading = true;
+    sharedRecipients = await fetchSharedRecipients();
+    sharedDirty = false;
+    sharedRecipientsLoading = false;
+    toasts.info('共有宛先を再取得しました');
+  }
 </script>
 
 <header>
@@ -143,6 +204,28 @@
       <p class="muted small">
         メール送信時の件名。次の変数が使えます: <code>{'{工事番号}'}</code> <code>{'{工事名}'}</code> <code>{'{期間}'}</code> <code>{'{発注者}'}</code>
       </p>
+    </section>
+
+    <section>
+      <h2>共有宛先（全員共通）</h2>
+      <p class="muted small">
+        全端末・全ユーザーで共有されるメール宛先。GitHub の <code>data/recipients.json</code>
+        が真のデータで、編集には管理者ロック解除が必要です。
+      </p>
+      {#if sharedRecipientsLoading}
+        <p class="muted small">読み込み中…</p>
+      {:else if sharedRecipients.length === 0}
+        <p class="muted small">未登録</p>
+      {:else}
+        <ul class="recip">
+          {#each sharedRecipients as r (r.メアド)}
+            <li>
+              <span class="rl">{r.ラベル}</span>
+              <span class="rm">{r.メアド}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
 
     <section>
@@ -257,10 +340,61 @@
           {/if}
         </div>
 
-        <!-- 宛先プリセット編集 -->
+        <!-- 共有宛先編集 -->
         <div class="admin-sub">
-          <h3>宛先プリセット</h3>
-          <p class="muted small">出力したファイルをメールで送る時の宛先候補。複数登録可。</p>
+          <h3>共有宛先（全員共通）の編集</h3>
+          <p class="muted small">
+            ここで編集 → 「📋 JSON コピー」→ GitHub の
+            <a href="https://github.com/takedia/koutei/edit/main/data/recipients.json" target="_blank" rel="noopener">data/recipients.json</a>
+            に貼り付け → Commit。1〜5 分以内に全端末で反映されます。
+          </p>
+
+          {#if sharedRecipients.length === 0}
+            <p class="muted small">未登録</p>
+          {:else}
+            <ul class="recip">
+              {#each sharedRecipients as r (r.メアド)}
+                <li>
+                  <span class="rl">{r.ラベル}</span>
+                  <span class="rm">{r.メアド}</span>
+                  <button class="x" onclick={() => removeSharedRecipient(r.メアド)} aria-label="削除">×</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
+          <div class="recip-add">
+            <input
+              type="text"
+              bind:value={sharedNewLabel}
+              placeholder="ラベル（例: 会社）"
+              aria-label="ラベル"
+            />
+            <input
+              type="email"
+              bind:value={sharedNewMail}
+              placeholder="メールアドレス"
+              aria-label="メアド"
+              autocomplete="email"
+            />
+            <button onclick={addSharedRecipient}>＋追加</button>
+          </div>
+
+          <div class="shared-actions">
+            {#if sharedDirty}
+              <span class="badge warn">未コミット</span>
+            {/if}
+            <button class="primary" onclick={copySharedJson}>📋 JSON コピー</button>
+            <button class="ghost" onclick={reloadSharedRecipients}>🔄 GitHub から再取得</button>
+          </div>
+        </div>
+
+        <!-- 個人宛先プリセット編集（端末ローカル） -->
+        <div class="admin-sub">
+          <h3>個人宛先（この端末のみ）</h3>
+          <p class="muted small">
+            この端末でのみ使う宛先。共有宛先と合わせてメール送信時に表示されます。
+          </p>
 
           {#if s.宛先プリセット.length === 0}
             <p class="muted small">未登録</p>
@@ -280,7 +414,7 @@
             <input
               type="text"
               bind:value={newLabel}
-              placeholder="ラベル（例: 会社）"
+              placeholder="ラベル"
               aria-label="ラベル"
             />
             <input
@@ -492,5 +626,15 @@
     background: #fff7ed;
     color: #c2410c;
     border-color: #fdba74;
+  }
+  .shared-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .shared-actions button {
+    flex-shrink: 0;
   }
 </style>
