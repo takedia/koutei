@@ -28,7 +28,7 @@ export async function sha256Hex(text) {
 
 /**
  * auth.json を fetch してハッシュを取り出す
- * @returns {Promise<{passwordHash: string} | null>}
+ * @returns {Promise<{passwordHash: string, adminPasswordHash?: string} | null>}
  */
 export async function fetchAuthInfo() {
   try {
@@ -62,4 +62,16 @@ export async function verifyPassword(password) {
   const inputHash = await sha256Hex(password);
   // 大文字小文字を吸収
   return inputHash.toLowerCase() === info.passwordHash.toLowerCase();
+}
+
+/**
+ * 管理者パスワードを照合（ハッシュ生成ツールのゲート用）
+ * @param {string} password
+ * @returns {Promise<boolean>}
+ */
+export async function verifyAdminPassword(password) {
+  const info = await fetchAuthInfo();
+  if (!info?.adminPasswordHash) return false;
+  const inputHash = await sha256Hex(password);
+  return inputHash.toLowerCase() === info.adminPasswordHash.toLowerCase();
 }

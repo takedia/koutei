@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { screen, toasts } from '../lib/stores.js';
-  import { sha256Hex } from '../lib/auth.js';
+  import { sha256Hex, verifyAdminPassword } from '../lib/auth.js';
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
@@ -16,6 +16,33 @@
       loadError = String(/** @type {any} */ (e)?.message ?? e);
     }
   });
+
+  // ── 管理者ロック（ハッシュ生成ツールのゲート）
+  let adminUnlocked = $state(false);
+  let adminInput = $state('');
+  let adminBusy = $state(false);
+  let adminError = $state(/** @type {string|null} */ (null));
+
+  async function unlockAdmin() {
+    if (!adminInput || adminBusy) return;
+    adminBusy = true;
+    adminError = null;
+    const ok = await verifyAdminPassword(adminInput);
+    adminBusy = false;
+    if (ok) {
+      adminUnlocked = true;
+      adminInput = '';
+    } else {
+      adminError = '管理者パスワードが違います';
+      setTimeout(() => { adminError = null; }, 4000);
+    }
+  }
+
+  function lockAdmin() {
+    adminUnlocked = false;
+    hashInput = '';
+    hashOutput = '';
+  }
 
   // ── ハッシュ生成ツール
   let hashInput = $state('');
@@ -162,32 +189,56 @@
     </section>
 
     <section>
-      <h2>パスワード ハッシュ生成</h2>
-      <p class="muted small">
-        新しいパスワードを入力してハッシュを生成、GitHub の <code>data/auth.json</code> の
-        <code>passwordHash</code> に貼り付けて保存すれば変更完了です。
-      </p>
-      <div class="hash-row">
-        <input
-          type="text"
-          bind:value={hashInput}
-          placeholder="新しいパスワードを入力"
-          autocomplete="off"
-        />
-        <button onclick={generateHash} disabled={hashBusy || !hashInput}>
-          生成
-        </button>
-      </div>
-      {#if hashOutput}
-        <div class="hash-output">
-          <code>{hashOutput}</code>
-          <button class="primary" onclick={copyHash}>📋 コピー</button>
+      <h2>🔒 パスワード ハッシュ生成（管理者専用）</h2>
+      {#if !adminUnlocked}
+        <p class="muted small">
+          管理者パスワードを入力するとハッシュ生成ツールが開きます。
+        </p>
+        <form class="hash-row" onsubmit={(e) => { e.preventDefault(); unlockAdmin(); }}>
+          <input
+            type="password"
+            bind:value={adminInput}
+            placeholder="管理者パスワード"
+            autocomplete="off"
+          />
+          <button type="submit" disabled={adminBusy || !adminInput}>
+            {adminBusy ? '確認中…' : 'ロック解除'}
+          </button>
+        </form>
+        {#if adminError}
+          <p class="err small">{adminError}</p>
+        {/if}
+      {:else}
+        <div class="admin-unlocked">
+          <span class="badge">解錠中</span>
+          <button class="ghost small-btn" onclick={lockAdmin}>🔒 ロックする</button>
         </div>
         <p class="muted small">
-          上記をコピー → github.com で
-          <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json を開く</a>
-          → <code>passwordHash</code> の値を置き換え → Commit changes
+          新しいパスワードを入力してハッシュを生成、GitHub の <code>data/auth.json</code> の
+          <code>passwordHash</code>（または <code>adminPasswordHash</code>）に貼り付けて保存。
         </p>
+        <div class="hash-row">
+          <input
+            type="text"
+            bind:value={hashInput}
+            placeholder="新しいパスワードを入力"
+            autocomplete="off"
+          />
+          <button onclick={generateHash} disabled={hashBusy || !hashInput}>
+            生成
+          </button>
+        </div>
+        {#if hashOutput}
+          <div class="hash-output">
+            <code>{hashOutput}</code>
+            <button class="primary" onclick={copyHash}>📋 コピー</button>
+          </div>
+          <p class="muted small">
+            上記をコピー → github.com で
+            <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json を開く</a>
+            → <code>passwordHash</code> の値を置き換え → Commit changes
+          </p>
+        {/if}
       {/if}
     </section>
   {/if}
@@ -343,5 +394,31 @@
     border-radius: 8px;
     padding: 10px 12px;
     margin: 0;
+  }
+  .err.small {
+    background: transparent;
+    border: none;
+    padding: 4px 0;
+    font-size: 12px;
+  }
+  .admin-unlocked {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .badge {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #6ee7b7;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .small-btn {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 </style>
