@@ -16,7 +16,7 @@
   import { exportElementAsPdf, exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
-  import { loadSettings } from '../lib/db.js';
+  import { loadSettings, saveSettings } from '../lib/db.js';
   import ExportPreview from './ExportPreview.svelte';
   import MailCompose from './MailCompose.svelte';
   import { isStaleChunkError, reloadOnceForStaleChunk } from '../main.js';
@@ -423,6 +423,24 @@
   }
   function mailClose() { mailOpen = false; }
   function mailSent()  { mailOpen = false; toasts.info('メールアプリを開きました'); }
+
+  /** MailCompose から「このアドレスをプリセット保存」が呼ばれた時 */
+  async function mailAddPreset(/** @type {{ラベル:string, メアド:string}} */ p) {
+    try {
+      const settings = await loadSettings();
+      if (settings.宛先プリセット.some(r => r.メアド.toLowerCase() === p.メアド.toLowerCase())) {
+        toasts.info('既に登録済みです');
+        return;
+      }
+      settings.宛先プリセット = [...settings.宛先プリセット, p];
+      await saveSettings(settings);
+      mailPresets = settings.宛先プリセット;
+      toasts.info('宛先プリセットに保存しました');
+    } catch (e) {
+      console.error(e);
+      toasts.error('保存失敗: ' + (/** @type {any} */ (e)?.message ?? e));
+    }
+  }
 </script>
 
 <header>
@@ -531,6 +549,7 @@
   defaultSubject={mailSubject}
   defaultBody={mailBody}
   presets={mailPresets}
+  onAddPreset={mailAddPreset}
   onCancel={mailClose}
   onSend={mailSent}
 />

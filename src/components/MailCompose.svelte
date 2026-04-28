@@ -7,16 +7,19 @@
    *   defaultSubject: string,
    *   defaultBody: string,
    *   presets: {ラベル: string, メアド: string}[],
+   *   onAddPreset: (preset: {ラベル: string, メアド: string}) => Promise<void>,
    *   onCancel: () => void,
    *   onSend: () => void
    * }} */
-  let { open, filename, defaultSubject, defaultBody, presets, onCancel, onSend } = $props();
+  let { open, filename, defaultSubject, defaultBody, presets, onAddPreset, onCancel, onSend } = $props();
 
   /** @type {Set<string>} */
   let selected = $state(new Set());
   let subject = $state('');
   let body = $state('');
+  let manualLabel = $state('');
   let manualMail = $state('');
+  let savingPreset = $state(false);
 
   $effect(() => {
     if (open) {
@@ -24,6 +27,7 @@
       selected = new Set();
       subject = defaultSubject;
       body = defaultBody;
+      manualLabel = '';
       manualMail = '';
     }
   });
@@ -36,14 +40,32 @@
     selected = next;
   }
 
+  /** 「その他」欄の内容をプリセットに保存 */
+  async function savePreset() {
+    const mail = manualMail.trim();
+    if (!mail) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return;
+    if (presets.some(p => p.メアド.toLowerCase() === mail.toLowerCase())) return;
+    const label = manualLabel.trim() || mail;
+    savingPreset = true;
+    try {
+      await onAddPreset({ ラベル: label, メアド: mail });
+      // 保存後はチェック済み状態にして手動欄をクリア
+      const next = new Set(selected);
+      next.add(mail);
+      selected = next;
+      manualLabel = '';
+      manualMail = '';
+    } finally {
+      savingPreset = false;
+    }
+  }
+
   function compose() {
     const list = [...selected];
     const manual = manualMail.trim();
     if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual)) {
       if (!list.includes(manual)) list.push(manual);
-    }
-    if (list.length === 0) {
-      // 宛先未選択でも mailto: を開いてユーザーが手動で入れられるようにする
     }
     const url = buildMailto(list, subject, body);
     location.href = url;
@@ -88,12 +110,28 @@
             </ul>
           {/if}
           <div class="manual">
-            <input
-              type="email"
-              bind:value={manualMail}
-              placeholder="その他のメアドを入力（任意）"
-              autocomplete="email"
-            />
+            <p class="muted small">その他の宛先（プリセット未登録）も入力可。</p>
+            <div class="manual-row">
+              <input
+                type="text"
+                bind:value={manualLabel}
+                placeholder="ラベル（任意）"
+              />
+              <input
+                type="email"
+                bind:value={manualMail}
+                placeholder="メールアドレス"
+                autocomplete="email"
+              />
+              <button
+                type="button"
+                onclick={savePreset}
+                disabled={savingPreset || !manualMail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualMail.trim()) || presets.some(p => p.メアド.toLowerCase() === manualMail.trim().toLowerCase())}
+                title="このアドレスを宛先プリセットに保存"
+              >
+                💾 保存
+              </button>
+            </div>
           </div>
         </section>
 
@@ -216,9 +254,34 @@
     margin: 0;
     font-size: 13px;
   }
-  .manual input {
-    width: 100%;
+  .manual {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin-top: 4px;
+  }
+  .manual-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .manual-row input[type="text"] {
+    width: 110px;
+    flex: 0 0 auto;
+  }
+  .manual-row input[type="email"] {
+    flex: 1;
+    min-width: 160px;
+  }
+  .manual-row button {
+    flex-shrink: 0;
+    min-height: 36px;
+    font-size: 13px;
+  }
+  .manual-row button:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
   textarea {
     width: 100%;
