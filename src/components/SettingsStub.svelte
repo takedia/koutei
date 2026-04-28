@@ -77,6 +77,15 @@
     }
   }
 
+  async function copyDisableSnippet() {
+    try {
+      await navigator.clipboard.writeText('"passwordHash": "",');
+      toasts.info('無効化用JSONをコピーしました');
+    } catch {
+      toasts.error('コピー失敗');
+    }
+  }
+
   async function save() {
     if (!s) return;
     await saveSettings(s);
@@ -197,9 +206,13 @@
               アプリ起動時にパスワード入力が必要です。
             </p>
             <p class="muted small">
-              無効化するには
-              <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json</a>
-              の <code>passwordHash</code> を空文字 <code>""</code> にしてコミット。
+              無効化したい場合は、ハッシュ生成は<strong>使わず</strong>、
+              <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json</a> を直接編集して
+              <code>passwordHash</code> の値を空文字 <code>""</code> にしてコミットしてください。
+            </p>
+            <button class="ghost small-btn" onclick={copyDisableSnippet}>📋 無効化用 JSON をコピー</button>
+            <p class="muted small">
+              （上をコピー → auth.json 内の同じ行に貼り付け）
             </p>
           {:else}
             <p class="small">
