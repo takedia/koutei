@@ -72,3 +72,13 @@ a {
 .printing .ctrl-row-fixed {
   display: none !important;
 }
+
+/* 出力時はカレンダーのスクロール制限を外して全体をキャプチャ可能にする */
+.printing .cal-wrap {
+  overflow: visible !important;
+  max-height: none !important;
+}
+/* 上部のメタ行も overflow-x:auto で見切れていることがあるので解放 */
+.printing .meta-row {
+  overflow: visible !important;
+}
