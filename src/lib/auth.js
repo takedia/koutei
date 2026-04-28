@@ -28,12 +28,13 @@ export async function sha256Hex(text) {
 
 /**
  * auth.json を fetch してハッシュを取り出す
+ * raw.githubusercontent は CDN で 5 分程度キャッシュされるため、
+ * クエリ文字列にユニーク値を付けて毎回最新を取りに行く。
  * @returns {Promise<{passwordHash: string, adminPasswordHash?: string} | null>}
  */
 export async function fetchAuthInfo() {
   try {
-    // raw.githubusercontent は GitHub の CDN で 5 分程度キャッシュされる
-    const res = await fetch(AUTH_URL, { cache: 'no-cache' });
+    const res = await fetch(`${AUTH_URL}?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) {
       authError.set(`認証情報の取得に失敗（HTTP ${res.status}）`);
       return null;
