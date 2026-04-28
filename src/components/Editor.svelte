@@ -13,7 +13,7 @@
   import CellEditor from './editor/CellEditor.svelte';
   import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
   import { exportElementAsPng } from '../lib/export/png.js';
-  import { exportElementAsPdf } from '../lib/export/pdf.js';
+  import { exportElementAsPdf, exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings } from '../lib/db.js';
@@ -365,20 +365,14 @@
         return;
       }
       toasts.info('PDF生成中…');
-      const blob = await withPrintingClass(() =>
-        exportElementAsPdf(/** @type {HTMLElement} */ (target))
+      const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
+        exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
       );
       const fname = makeFilename(koutei, 'pdf');
-      // モバイルは iframe PDF プレビューが不安定なので即ダウンロード
-      if (isMobileUa) {
-        downloadBlob(blob, fname);
-        toasts.info('PDFをダウンロードしました');
-        return;
-      }
       clearPreviewUrl();
       previewKind = 'pdf';
-      previewBlob = blob;
-      previewUrl = URL.createObjectURL(blob);
+      previewBlob = pdfBlob;                                    // ダウンロード/メール用の本体
+      previewUrl = URL.createObjectURL(previewImgBlob);         // プレビュー画像（ImgBlob）
       previewFilename = fname;
       previewOpen = true;
     } catch (e) {

@@ -65,6 +65,20 @@ export async function verifyPassword(password) {
 }
 
 /**
+ * 認証情報を読んで「ログインパスワードが必要か」を返す。
+ * passwordHash が空文字 / null / 未定義なら無効化扱い → 自動的に authed=true。
+ * @returns {Promise<{required: boolean, info: any}>}
+ */
+export async function bootstrapAuth() {
+  const info = await fetchAuthInfo();
+  const required = !!(info && typeof info.passwordHash === 'string' && info.passwordHash.trim().length > 0);
+  if (info && !required) {
+    authed.set(true);  // パスワード不要モード
+  }
+  return { required, info };
+}
+
+/**
  * 管理者パスワードを照合（ハッシュ生成ツールのゲート用）
  * @param {string} password
  * @returns {Promise<boolean>}

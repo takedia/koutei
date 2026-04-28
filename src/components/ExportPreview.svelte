@@ -21,10 +21,8 @@
       </header>
 
       <div class="body">
-        {#if kind === 'png' && url}
+        {#if url}
           <img src={url} alt="工程表プレビュー" />
-        {:else if kind === 'pdf' && url}
-          <iframe src={url} title="工程表プレビュー"></iframe>
         {/if}
       </div>
 
@@ -89,13 +87,6 @@
     max-width: 100%;
     height: auto;
     display: block;
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  }
-  .body iframe {
-    width: 100%;
-    height: 70dvh;
-    border: none;
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }

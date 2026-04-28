@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { screen, toasts } from '../lib/stores.js';
-  import { sha256Hex, verifyAdminPassword } from '../lib/auth.js';
+  import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
@@ -17,11 +17,18 @@
     }
   });
 
-  // ── 管理者ロック（ハッシュ生成ツールのゲート）
+  // ── 管理者ロック（ハッシュ生成ツール・宛先プリセット編集のゲート）
   let adminUnlocked = $state(false);
   let adminInput = $state('');
   let adminBusy = $state(false);
   let adminError = $state(/** @type {string|null} */ (null));
+  /** ログインパスワードが現在有効か（auth.json の passwordHash が空でないか） */
+  let loginPasswordRequired = $state(/** @type {boolean|null} */ (null));
+
+  async function refreshAuthStatus() {
+    const info = await fetchAuthInfo();
+    loginPasswordRequired = !!(info && typeof info.passwordHash === 'string' && info.passwordHash.trim().length > 0);
+  }
 
   async function unlockAdmin() {
     if (!adminInput || adminBusy) return;
@@ -32,6 +39,7 @@
     if (ok) {
       adminUnlocked = true;
       adminInput = '';
+      refreshAuthStatus();
     } else {
       adminError = '管理者パスワードが違います';
       setTimeout(() => { adminError = null; }, 4000);
@@ -144,42 +152,6 @@
     </section>
 
     <section>
-      <h2>宛先プリセット</h2>
-      <p class="muted small">出力したファイルをメールで送る時の宛先候補。複数登録可。</p>
-
-      {#if s.宛先プリセット.length === 0}
-        <p class="muted">未登録</p>
-      {:else}
-        <ul class="recip">
-          {#each s.宛先プリセット as a (a.メアド)}
-            <li>
-              <span class="rl">{a.ラベル}</span>
-              <span class="rm">{a.メアド}</span>
-              <button class="x" onclick={() => removeRecipient(a.メアド)} aria-label="削除">×</button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-
-      <div class="recip-add">
-        <input
-          type="text"
-          bind:value={newLabel}
-          placeholder="ラベル（例: 会社）"
-          aria-label="ラベル"
-        />
-        <input
-          type="email"
-          bind:value={newMail}
-          placeholder="メールアドレス"
-          aria-label="メアド"
-          autocomplete="email"
-        />
-        <button onclick={addRecipient}>＋追加</button>
-      </div>
-    </section>
-
-    <section>
       <h2>GitHub</h2>
       {#if s.PAT暗号化}
         <p>登録済み</p>
@@ -189,10 +161,10 @@
     </section>
 
     <section>
-      <h2>🔒 パスワード ハッシュ生成（管理者専用）</h2>
+      <h2>🔒 管理者メニュー</h2>
       {#if !adminUnlocked}
         <p class="muted small">
-          管理者パスワードを入力するとハッシュ生成ツールが開きます。
+          管理者パスワードを入力すると、ログインパスワード設定の確認・ハッシュ生成・宛先プリセット編集が開きます。
         </p>
         <form class="hash-row" onsubmit={(e) => { e.preventDefault(); unlockAdmin(); }}>
           <input
@@ -213,32 +185,101 @@
           <span class="badge">解錠中</span>
           <button class="ghost small-btn" onclick={lockAdmin}>🔒 ロックする</button>
         </div>
-        <p class="muted small">
-          新しいパスワードを入力してハッシュを生成、GitHub の <code>data/auth.json</code> の
-          <code>passwordHash</code>（または <code>adminPasswordHash</code>）に貼り付けて保存。
-        </p>
-        <div class="hash-row">
-          <input
-            type="text"
-            bind:value={hashInput}
-            placeholder="新しいパスワードを入力"
-            autocomplete="off"
-          />
-          <button onclick={generateHash} disabled={hashBusy || !hashInput}>
-            生成
-          </button>
+
+        <!-- ログインパスワード状態 -->
+        <div class="admin-sub">
+          <h3>ログインパスワード</h3>
+          {#if loginPasswordRequired === null}
+            <p class="muted small">確認中…</p>
+          {:else if loginPasswordRequired}
+            <p class="small">
+              <span class="badge">有効</span>
+              アプリ起動時にパスワード入力が必要です。
+            </p>
+            <p class="muted small">
+              無効化するには
+              <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json</a>
+              の <code>passwordHash</code> を空文字 <code>""</code> にしてコミット。
+            </p>
+          {:else}
+            <p class="small">
+              <span class="badge warn">無効</span>
+              現在ログインパスワード無設定。誰でも起動できます。
+            </p>
+            <p class="muted small">
+              有効化するには下の「パスワード ハッシュ生成」で新ハッシュを作り、
+              <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json</a>
+              の <code>passwordHash</code> に貼り付けてコミット。
+            </p>
+          {/if}
         </div>
-        {#if hashOutput}
-          <div class="hash-output">
-            <code>{hashOutput}</code>
-            <button class="primary" onclick={copyHash}>📋 コピー</button>
-          </div>
+
+        <!-- ハッシュ生成 -->
+        <div class="admin-sub">
+          <h3>パスワード ハッシュ生成</h3>
           <p class="muted small">
-            上記をコピー → github.com で
-            <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json を開く</a>
-            → <code>passwordHash</code> の値を置き換え → Commit changes
+            生成したハッシュを GitHub の <code>data/auth.json</code> の
+            <code>passwordHash</code>（ログイン用）または <code>adminPasswordHash</code>（管理者用）に貼り付け。
           </p>
-        {/if}
+          <div class="hash-row">
+            <input
+              type="text"
+              bind:value={hashInput}
+              placeholder="新しいパスワードを入力"
+              autocomplete="off"
+            />
+            <button onclick={generateHash} disabled={hashBusy || !hashInput}>
+              生成
+            </button>
+          </div>
+          {#if hashOutput}
+            <div class="hash-output">
+              <code>{hashOutput}</code>
+              <button class="primary" onclick={copyHash}>📋 コピー</button>
+            </div>
+            <p class="muted small">
+              <a href="https://github.com/takedia/koutei/edit/main/data/auth.json" target="_blank" rel="noopener">data/auth.json を開く</a>
+              → 該当キーの値を置き換え → Commit changes
+            </p>
+          {/if}
+        </div>
+
+        <!-- 宛先プリセット編集 -->
+        <div class="admin-sub">
+          <h3>宛先プリセット</h3>
+          <p class="muted small">出力したファイルをメールで送る時の宛先候補。複数登録可。</p>
+
+          {#if s.宛先プリセット.length === 0}
+            <p class="muted small">未登録</p>
+          {:else}
+            <ul class="recip">
+              {#each s.宛先プリセット as a (a.メアド)}
+                <li>
+                  <span class="rl">{a.ラベル}</span>
+                  <span class="rm">{a.メアド}</span>
+                  <button class="x" onclick={() => removeRecipient(a.メアド)} aria-label="削除">×</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
+          <div class="recip-add">
+            <input
+              type="text"
+              bind:value={newLabel}
+              placeholder="ラベル（例: 会社）"
+              aria-label="ラベル"
+            />
+            <input
+              type="email"
+              bind:value={newMail}
+              placeholder="メールアドレス"
+              aria-label="メアド"
+              autocomplete="email"
+            />
+            <button onclick={addRecipient}>＋追加</button>
+          </div>
+        </div>
       {/if}
     </section>
   {/if}
@@ -420,5 +461,23 @@
     min-height: 32px;
     padding: 0 10px;
     font-size: 12px;
+  }
+  .admin-sub {
+    border-top: 1px dashed var(--c-border);
+    padding-top: 10px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .admin-sub h3 {
+    margin: 0 0 4px 0;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .badge.warn {
+    background: #fff7ed;
+    color: #c2410c;
+    border-color: #fdba74;
   }
 </style>
