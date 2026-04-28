@@ -16,6 +16,7 @@
   import { exportElementAsPdf } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
   import ExportPreview from './ExportPreview.svelte';
+  import { isStaleChunkError, reloadOnceForStaleChunk } from '../main.js';
 
   /** @type {HTMLDivElement | null} */
   let calendarRoot = $state(null);
@@ -259,6 +260,16 @@
       : null
   );
 
+  /** 出力系エラー: 古いチャンク参照は自動リロード、それ以外はトースト */
+  function handleExportError(/** @type {unknown} */ e) {
+    console.error(e);
+    if (isStaleChunkError(e)) {
+      toasts.info('新しいバージョンに更新します…');
+      if (reloadOnceForStaleChunk()) return;
+    }
+    toasts.error('出力失敗: ' + (/** @type {any} */ (e)?.message ?? e));
+  }
+
   async function onExportXlsx() {
     if (!koutei) return;
     try {
@@ -267,8 +278,7 @@
       downloadBlob(blob, makeFilename(koutei, 'xlsx'));
       toasts.info('Excelをダウンロードしました');
     } catch (e) {
-      console.error(e);
-      toasts.error('出力失敗: ' + (e?.message ?? e));
+      handleExportError(e);
     }
   }
 
@@ -317,8 +327,7 @@
       previewFilename = makeFilename(koutei, 'png');
       previewOpen = true;
     } catch (e) {
-      console.error(e);
-      toasts.error('出力失敗: ' + (e?.message ?? e));
+      handleExportError(e);
     }
   }
 
@@ -349,8 +358,7 @@
       previewFilename = fname;
       previewOpen = true;
     } catch (e) {
-      console.error(e);
-      toasts.error('出力失敗: ' + (e?.message ?? e));
+      handleExportError(e);
     }
   }
 
