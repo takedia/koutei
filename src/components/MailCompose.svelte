@@ -3,6 +3,7 @@
 
   /** @type {{
    *   open: boolean,
+   *   blob: Blob|null,
    *   filename: string,
    *   defaultSubject: string,
    *   defaultBody: string,
@@ -11,7 +12,20 @@
    *   onCancel: () => void,
    *   onSend: () => void
    * }} */
-  let { open, filename, defaultSubject, defaultBody, presets, onAddPreset, onCancel, onSend } = $props();
+  let { open, blob, filename, defaultSubject, defaultBody, presets, onAddPreset, onCancel, onSend } = $props();
+
+  /** Web Share API でファイル付き共有が使える環境かを判定（毎回 blob が変わるので $derived） */
+  let canShareFile = $derived(
+    !!blob && typeof navigator !== 'undefined' &&
+    typeof (/** @type {any} */ (navigator).canShare) === 'function' &&
+    typeof (/** @type {any} */ (navigator).share) === 'function' &&
+    (() => {
+      try {
+        const probe = new File([blob], filename || 'file', { type: blob.type || 'application/octet-stream' });
+        return /** @type {any} */ (navigator).canShare({ files: [probe] });
+      } catch { return false; }
+    })()
+  );
 
   /** @type {Set<string>} */
   let selected = $state(new Set());
@@ -61,15 +75,52 @@
     }
   }
 
-  function compose() {
+  function recipientsList() {
     const list = [...selected];
     const manual = manualMail.trim();
     if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual)) {
       if (!list.includes(manual)) list.push(manual);
     }
-    const url = buildMailto(list, subject, body);
+    return list;
+  }
+
+  /** Web Share API: ファイルをそのままメールアプリ等に渡す（添付済みで開く） */
+  async function shareFile() {
+    if (!blob) return;
+    const list = recipientsList();
+    const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+    const text = [
+      list.length ? `宛先候補: ${list.join(', ')}` : '',
+      body
+    ].filter(Boolean).join('\n\n');
+    try {
+      await /** @type {any} */ (navigator).share({
+        files: [file],
+        title: subject,
+        text
+      });
+      onSend();
+    } catch (e) {
+      const name = /** @type {any} */ (e)?.name;
+      if (name === 'AbortError') return; // ユーザーキャンセル
+      console.warn('share failed, fallback to mailto', e);
+      composeMailto();
+    }
+  }
+
+  /** mailto: フォールバック（ファイルは既にダウンロード済みなので手動添付） */
+  function composeMailto() {
+    const url = buildMailto(recipientsList(), subject, body);
     location.href = url;
     onSend();
+  }
+
+  function compose() {
+    if (canShareFile) {
+      shareFile();
+    } else {
+      composeMailto();
+    }
   }
 </script>
 
@@ -84,8 +135,13 @@
 
       <div class="body">
         <p class="note">
-          📎 添付ファイル <code>{filename}</code> は<strong>すでにダウンロード済み</strong>です。
-          メールアプリが開いたら、手動でこのファイルを添付してください。
+          {#if canShareFile}
+            📎 ファイル <code>{filename}</code> を<strong>添付済み</strong>でメールアプリに渡します。
+            送信ボタンを押すと OS の共有シートが開き、メール送信先を選べます。
+          {:else}
+            📎 添付ファイル <code>{filename}</code> は<strong>すでにダウンロード済み</strong>です。
+            メールアプリが開いたら、ダウンロードフォルダから手動でこのファイルを添付してください。
+          {/if}
         </p>
 
         <section>
@@ -148,7 +204,9 @@
 
       <footer>
         <button class="ghost" onclick={onCancel}>キャンセル</button>
-        <button class="primary" onclick={compose}>✉️ メールアプリを開く</button>
+        <button class="primary" onclick={compose}>
+          {canShareFile ? '✉️📎 ファイル付き共有' : '✉️ メールアプリを開く'}
+        </button>
       </footer>
     </div>
   </div>

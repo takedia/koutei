@@ -37,6 +37,7 @@
 
   // メール作成モーダル状態
   let mailOpen = $state(false);
+  let mailBlob = $state(/** @type {Blob|null} */ (null));
   let mailFilename = $state('');
   let mailSubject = $state('');
   let mailBody = $state('');
@@ -418,16 +419,32 @@
     clearPreviewUrl();
   }
 
-  /** メール送信フロー: ファイルをダウンロードしてから MailCompose を開く */
+  /** Web Share API でファイル付き共有が可能か（端末判定） */
+  function canShareFiles(/** @type {Blob} */ blob, /** @type {string} */ filename) {
+    try {
+      const nav = /** @type {any} */ (navigator);
+      if (typeof nav?.canShare !== 'function' || typeof nav?.share !== 'function') return false;
+      const probe = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      return nav.canShare({ files: [probe] });
+    } catch { return false; }
+  }
+
+  /** メール送信フロー:
+   * - Web Share API が使える環境: ダウンロードはスキップして MailCompose 経由で添付済み共有
+   * - 使えない環境: 先にダウンロードして mailto: で開く（手動添付）
+   */
   async function startMailFlow(/** @type {Blob} */ blob, /** @type {string} */ filename) {
     if (!koutei) return;
     try {
-      // 添付用にダウンロードまで先に済ませる
-      downloadBlob(blob, filename);
+      // 共有 API が使えない場合のみ事前ダウンロードして「ダウンロード済み」状態にする
+      if (!canShareFiles(blob, filename)) {
+        downloadBlob(blob, filename);
+      }
       const [settings, shared] = await Promise.all([
         loadSettings(),
         fetchSharedRecipients()
       ]);
+      mailBlob = blob;
       mailFilename = filename;
       mailSubject = renderSubject(settings.件名テンプレ ?? '', koutei);
       mailBody = defaultBody(filename);
@@ -455,8 +472,8 @@
     previewBlob = null;
     clearPreviewUrl();
   }
-  function mailClose() { mailOpen = false; }
-  function mailSent()  { mailOpen = false; toasts.info('メールアプリを開きました'); }
+  function mailClose() { mailOpen = false; mailBlob = null; }
+  function mailSent()  { mailOpen = false; mailBlob = null; toasts.info('メールアプリを開きました'); }
 
   /** MailCompose から「このアドレスをプリセット保存」が呼ばれた時 */
   async function mailAddPreset(/** @type {{ラベル:string, メアド:string}} */ p) {
@@ -583,6 +600,7 @@
 
 <MailCompose
   open={mailOpen}
+  blob={mailBlob}
   filename={mailFilename}
   defaultSubject={mailSubject}
   defaultBody={mailBody}
