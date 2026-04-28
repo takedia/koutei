@@ -131,7 +131,14 @@ function defaultLabels() {
 export function createKoutei(opts = {}) {
   const today = dayjs();
   const 提出種別 = opts.提出種別 ?? '2週';
-  const 開始 = opts.開始日 ?? today.format('YYYY-MM-DD');
+  // 2週は必ず月曜始まり、月間は必ず月初始まり
+  const baseStart = opts.開始日 ?? today.format('YYYY-MM-DD');
+  let 開始;
+  if (提出種別 === '2週') {
+    開始 = alignToMonday(baseStart);
+  } else {
+    開始 = dayjs(baseStart).startOf('month').format('YYYY-MM-DD');
+  }
   const days = 提出種別 === '2週' ? 14 : dayjs(開始).daysInMonth();
   const 終了 = dayjs(開始).add(days - 1, 'day').format('YYYY-MM-DD');
   return {
@@ -146,6 +153,18 @@ export function createKoutei(opts = {}) {
     },
     工事ブロック: [createKojiBlock(開始, 終了)]
   };
+}
+
+/**
+ * 与えられた日付を「その週の月曜日」に揃える（dayjs の day(): 日=0, 月=1, …, 土=6）
+ * @param {string} ymd YYYY-MM-DD
+ * @returns {string}
+ */
+export function alignToMonday(ymd) {
+  const d = dayjs(ymd);
+  const dow = d.day();             // 日=0, 月=1, …, 土=6
+  const offsetToMonday = dow === 0 ? -6 : 1 - dow;
+  return d.add(offsetToMonday, 'day').format('YYYY-MM-DD');
 }
 
 /**
@@ -188,26 +207,34 @@ export function createEmptyDayCells(開始, 終了, kosu) {
 }
 
 /**
- * 期間変更時に既存セルをコピーしつつ新期間で再構築
+ * 期間変更時に既存セルを保持しつつ新期間分のセルを補完。
+ * 範囲外の既存データも残す（月送りで前月データを失わないため）。
  * @param {string} 開始
  * @param {string} 終了
  * @param {固定行数} kosu
  * @param {Record<string, DayCell>} existing
  */
 export function rebuildDayCells(開始, 終了, kosu, existing) {
-  const fresh = createEmptyDayCells(開始, 終了, kosu);
-  for (const d of Object.keys(fresh)) {
-    if (existing[d]) {
-      // 既存配列を新行数に合わせて伸縮
+  /** @type {Record<string, DayCell>} */
+  const out = { ...existing };
+  // 新範囲の各日付について、未存在なら空セルを追加、存在するなら固定行数に合わせて伸縮
+  let cur = dayjs(開始);
+  const end = dayjs(終了);
+  while (cur.isBefore(end) || cur.isSame(end)) {
+    const d = cur.format('YYYY-MM-DD');
+    if (!out[d]) {
+      out[d] = emptyDayCell(kosu);
+    } else {
       for (const key of /** @type {const} */ (['人員', '重機', '回送', '車両', 'その他'])) {
         const target = key === '回送' ? 1 : kosu[key];
-        const arr = (existing[d][key] ?? []).slice(0, target);
+        const arr = (out[d][key] ?? []).slice(0, target);
         while (arr.length < target) arr.push(emptyEntry());
-        fresh[d][key] = arr;
+        out[d][key] = arr;
       }
     }
+    cur = cur.add(1, 'day');
   }
-  return fresh;
+  return out;
 }
 
 // ───────────────── マイグレーション ─────────────────

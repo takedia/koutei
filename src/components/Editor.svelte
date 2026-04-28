@@ -5,7 +5,7 @@
   import { loadKoutei, saveKoutei } from '../lib/db.js';
   import { editingId, draftKoutei, screen, toasts } from '../lib/stores.js';
   import { formatRange, addDays } from '../lib/utils/date.js';
-  import { rebuildDayCells } from '../lib/types.js';
+  import { rebuildDayCells, alignToMonday } from '../lib/types.js';
   import { blockTotalHours } from '../lib/utils/bars.js';
   import Calendar from './editor/Calendar.svelte';
   import KoushuPicker from './editor/KoushuPicker.svelte';
@@ -208,22 +208,21 @@
   }
 
   /** 期間種別切替（即時切替）
-   * 月間モード: 開始月の 1 日 ～ 既存の終了の月の末日まで（複数月にまたがるならそのまま広げる） */
+   * - 2週: 開始は同じ週の月曜日に揃え、14 日分
+   * - 月間: 開始月の 1 日 〜 末日（必ず 1 ヶ月）
+   * 範囲外データは保持されるので、月送り/種別切替で消えない */
   function changeKind(/** @type {'2週'|'月間'} */ kind) {
     if (!koutei) return;
     if (koutei.meta.提出種別 === kind) return;
 
     const oldStart = koutei.meta.対象期間.開始;
-    const oldEnd = koutei.meta.対象期間.終了;
 
     let newStart, newEnd;
     if (kind === '月間') {
       newStart = dayjs(oldStart).startOf('month').format('YYYY-MM-DD');
-      // 既存の終了が次月以降にまたがっていたらその月末まで含める
-      newEnd = dayjs(oldEnd).endOf('month').format('YYYY-MM-DD');
+      newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
     } else {
-      // 2週: 開始日はそのまま、14 日分
-      newStart = oldStart;
+      newStart = alignToMonday(oldStart);
       newEnd = addDays(newStart, 13);
     }
 
@@ -233,36 +232,6 @@
 
     for (const b of koutei.工事ブロック) {
       b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
-    }
-    markDirty();
-  }
-
-  /** 月間モードで終了月をさらに +1 ヶ月（月末まで）伸ばす */
-  function extendMonth() {
-    if (!koutei) return;
-    if (koutei.meta.提出種別 !== '月間') return;
-    const newEnd = dayjs(koutei.meta.対象期間.終了)
-      .add(1, 'month')
-      .endOf('month')
-      .format('YYYY-MM-DD');
-    koutei.meta.対象期間.終了 = newEnd;
-    for (const b of koutei.工事ブロック) {
-      b.日次セル = rebuildDayCells(koutei.meta.対象期間.開始, newEnd, b.固定行数, b.日次セル);
-    }
-    markDirty();
-  }
-
-  /** 月間モードで先頭月をさらに -1 ヶ月（月初まで）伸ばす */
-  function extendMonthBackward() {
-    if (!koutei) return;
-    if (koutei.meta.提出種別 !== '月間') return;
-    const newStart = dayjs(koutei.meta.対象期間.開始)
-      .subtract(1, 'month')
-      .startOf('month')
-      .format('YYYY-MM-DD');
-    koutei.meta.対象期間.開始 = newStart;
-    for (const b of koutei.工事ブロック) {
-      b.日次セル = rebuildDayCells(newStart, koutei.meta.対象期間.終了, b.固定行数, b.日次セル);
     }
     markDirty();
   }
@@ -292,7 +261,7 @@
     }
   }
 
-  /** 2週モード: 期間を ±delta 日シフト */
+  /** 2週モード: 期間を ±delta 日シフト（月曜始まりキープのため通常 ±7） */
   function shiftPeriod(/** @type {number} */ delta) {
     if (!koutei) return;
     if (koutei.meta.提出種別 !== '2週') return;
@@ -306,12 +275,12 @@
     markDirty();
   }
 
-  /** 月間モード: 表示を 1 ヶ月前後にスライド（期間長は維持） */
+  /** 月間モード: 表示を ±1 ヶ月スライド（必ず 1 ヶ月分） */
   function shiftMonth(/** @type {number} */ delta) {
     if (!koutei) return;
     if (koutei.meta.提出種別 !== '月間') return;
-    const newStart = dayjs(koutei.meta.対象期間.開始).add(delta, 'month').format('YYYY-MM-DD');
-    const newEnd = dayjs(koutei.meta.対象期間.終了).add(delta, 'month').format('YYYY-MM-DD');
+    const newStart = dayjs(koutei.meta.対象期間.開始).add(delta, 'month').startOf('month').format('YYYY-MM-DD');
+    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
     for (const b of koutei.工事ブロック) {
@@ -548,13 +517,6 @@
         </div>
         <div class="hours-pill">{blockTotalHours(block)}h</div>
       </section>
-      {#if koutei.meta.提出種別 === '月間'}
-        <section class="extend-row">
-          <button class="ghost" onclick={extendMonthBackward} title="先頭月の前にもう 1 ヶ月足す">⟵ +1ヶ月</button>
-          <span class="muted small">期間を伸ばす</span>
-          <button class="ghost" onclick={extendMonth} title="末尾の月のあとにもう 1 ヶ月足す">+1ヶ月 ⟶</button>
-        </section>
-      {/if}
 
       <div bind:this={calendarRoot}>
         <Calendar
@@ -728,26 +690,6 @@
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 700;
-  }
-  .extend-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    background: #fafafa;
-    border-bottom: 1px solid var(--c-border);
-    font-size: 12px;
-    justify-content: center;
-  }
-  .extend-row .ghost {
-    background: transparent;
-    border: 1px solid var(--c-border);
-    min-height: 30px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-  .extend-row .small {
-    margin: 0;
   }
   main {
     padding: 8px;
