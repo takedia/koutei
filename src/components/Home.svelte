@@ -4,6 +4,7 @@
   import { createKoutei } from '../lib/types.js';
   import { screen, editingId, draftKoutei, toasts } from '../lib/stores.js';
   import { formatRange } from '../lib/utils/date.js';
+  import { version, buildLabel } from '../lib/version.js';
 
   /** @type {[string, import('../lib/db.js').IndexEntry[]][]} */
   let groups = $state([]);
@@ -78,6 +79,8 @@
       </section>
     {/each}
   {/if}
+
+  <p class="version">v{version}{buildLabel() ? ` · ${buildLabel()}` : ''}</p>
 </main>
 
 <style>
@@ -180,6 +183,13 @@
     font-size: 11px;
     font-weight: 600;
     vertical-align: middle;
+  }
+  .version {
+    text-align: center;
+    color: var(--c-muted);
+    font-size: 11px;
+    margin: 24px 0 8px 0;
+    font-family: ui-monospace, "Courier New", monospace;
   }
   .del {
     background: transparent;

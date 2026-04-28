@@ -1,5 +1,6 @@
 <script>
   import { verifyPassword, authed, authError } from '../lib/auth.js';
+  import { version, buildLabel } from '../lib/version.js';
 
   let password = $state('');
   let busy = $state(false);
@@ -49,6 +50,8 @@
     {#if errorMsg}
       <p class="err">{errorMsg}</p>
     {/if}
+
+    <p class="version">v{version}{buildLabel() ? ` · ${buildLabel()}` : ''}</p>
   </form>
 </div>
 
@@ -100,5 +103,12 @@
     color: #dc2626;
     text-align: center;
     font-size: 13px;
+  }
+  .version {
+    margin: 0;
+    text-align: center;
+    color: var(--c-muted);
+    font-size: 11px;
+    font-family: ui-monospace, "Courier New", monospace;
   }
 </style>
