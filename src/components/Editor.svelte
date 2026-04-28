@@ -276,18 +276,89 @@
     markDirty();
   }
 
-  /** 月間モード: 表示を ±1 ヶ月スライド（必ず 1 ヶ月分） */
+  /** 月間モード: 表示を ±1 ヶ月スライド（期間長は維持） */
   function shiftMonth(/** @type {number} */ delta) {
     if (!koutei) return;
     if (koutei.meta.提出種別 !== '月間') return;
     const newStart = dayjs(koutei.meta.対象期間.開始).add(delta, 'month').startOf('month').format('YYYY-MM-DD');
-    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
+    const oldEnd = koutei.meta.対象期間.終了;
+    const monthsLen = monthsInRange(koutei.meta.対象期間.開始, oldEnd).length;
+    const newEnd = dayjs(newStart).add(monthsLen - 1, 'month').endOf('month').format('YYYY-MM-DD');
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
     for (const b of koutei.工事ブロック) {
       b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
     }
     markDirty();
+  }
+
+  /** 月間モードで終了月をさらに +1 ヶ月（月末まで）伸ばす */
+  function extendMonthForward() {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const newEnd = dayjs(koutei.meta.対象期間.終了).add(1, 'month').endOf('month').format('YYYY-MM-DD');
+    koutei.meta.対象期間.終了 = newEnd;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(koutei.meta.対象期間.開始, newEnd, b.固定行数, b.日次セル);
+    }
+    markDirty();
+  }
+
+  /** 月間モードで先頭月をさらに -1 ヶ月（月初まで）伸ばす */
+  function extendMonthBackward() {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const newStart = dayjs(koutei.meta.対象期間.開始).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+    koutei.meta.対象期間.開始 = newStart;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(newStart, koutei.meta.対象期間.終了, b.固定行数, b.日次セル);
+    }
+    markDirty();
+  }
+
+  /** 期間が含む月（YYYY-MM）の配列 */
+  function monthsInRange(/** @type {string} */ start, /** @type {string} */ end) {
+    const startM = dayjs(start).startOf('month');
+    const endM = dayjs(end).startOf('month');
+    const arr = [];
+    let cur = startM;
+    while (cur.isBefore(endM) || cur.isSame(endM)) {
+      arr.push(cur.format('YYYY-MM'));
+      cur = cur.add(1, 'month');
+    }
+    return arr;
+  }
+
+  /** 現在の期間が複数月にまたがっている（月間モードのみ意味あり） */
+  function isMultiMonthPeriod() {
+    if (!koutei) return false;
+    if (koutei.meta.提出種別 !== '月間') return false;
+    return monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了).length > 1;
+  }
+
+  /** 一時的に期間を「指定の月の月初〜月末」にしてから fn を実行、終了後に元の期間に戻す */
+  async function withMonthPeriod(/** @type {string} */ ym, /** @type {() => Promise<any>} */ fn) {
+    if (!koutei) return fn();
+    const orig = { 開始: koutei.meta.対象期間.開始, 終了: koutei.meta.対象期間.終了 };
+    const newStart = dayjs(`${ym}-01`).startOf('month').format('YYYY-MM-DD');
+    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
+    try {
+      koutei.meta.対象期間.開始 = newStart;
+      koutei.meta.対象期間.終了 = newEnd;
+      for (const b of koutei.工事ブロック) {
+        b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
+      }
+      // Calendar の再描画を 2 フレーム待つ
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      return await fn();
+    } finally {
+      koutei.meta.対象期間.開始 = orig.開始;
+      koutei.meta.対象期間.終了 = orig.終了;
+      for (const b of koutei.工事ブロック) {
+        b.日次セル = rebuildDayCells(orig.開始, orig.終了, b.固定行数, b.日次セル);
+      }
+    }
   }
 
   let editingBar = $derived(
@@ -310,6 +381,20 @@
     if (!koutei) return;
     try {
       if (dirty) await save();
+      // 月間モードで複数月にまたがる場合は月ごとに別ファイルへ
+      if (isMultiMonthPeriod()) {
+        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
+        toasts.info(`${months.length}ヶ月分のExcelを生成中…`);
+        for (const m of months) {
+          await withMonthPeriod(m, async () => {
+            const blob = await exportKouteiAsXlsx(koutei);
+            downloadBlob(blob, makeFilename(koutei, 'xlsx'));
+          });
+          await new Promise(r => setTimeout(r, 300));
+        }
+        toasts.info(`${months.length}ヶ月分のExcelをダウンロードしました`);
+        return;
+      }
       const blob = await exportKouteiAsXlsx(koutei);
       downloadBlob(blob, makeFilename(koutei, 'xlsx'));
       toasts.info('Excelをダウンロードしました');
@@ -323,12 +408,35 @@
     if (!koutei) return;
     try {
       if (dirty) await save();
+      // 複数月にまたがる場合は対象月をユーザーに選んでもらう
+      if (isMultiMonthPeriod()) {
+        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
+        const picked = pickMonthDialog(months);
+        if (!picked) return;
+        toasts.info('Excel生成中…');
+        await withMonthPeriod(picked, async () => {
+          const blob = await exportKouteiAsXlsx(koutei);
+          await startMailFlow(blob, makeFilename(koutei, 'xlsx'));
+        });
+        return;
+      }
       toasts.info('Excel生成中…');
       const blob = await exportKouteiAsXlsx(koutei);
       await startMailFlow(blob, makeFilename(koutei, 'xlsx'));
     } catch (e) {
       handleExportError(e);
     }
+  }
+
+  /** 月選択（簡易 prompt 版） */
+  function pickMonthDialog(/** @type {string[]} */ months) {
+    const list = months.map((m, i) => `${i + 1}: ${m.replace('-', '/')}`).join('\n');
+    const ans = window.prompt(`どの月分を送信しますか？番号を入力してください。\n${list}`, '1');
+    if (ans == null) return null;
+    const idx = parseInt(ans, 10) - 1;
+    if (Number.isFinite(idx) && idx >= 0 && idx < months.length) return months[idx];
+    toasts.error('番号が正しくありません');
+    return null;
   }
 
   /** 画像/PDF キャプチャ対象 = meta-row + topbar + calendar を含む親 DOM */
@@ -365,6 +473,22 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
+      // 月またぎは月ごとに分割ダウンロード
+      if (isMultiMonthPeriod()) {
+        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
+        toasts.info(`${months.length}ヶ月分の画像を生成中…`);
+        for (const m of months) {
+          await withMonthPeriod(m, async () => {
+            const blob = await withPrintingClass(() =>
+              exportElementAsPng(/** @type {HTMLElement} */ (target))
+            );
+            downloadBlob(blob, makeFilename(koutei, 'png'));
+          });
+          await new Promise(r => setTimeout(r, 300));
+        }
+        toasts.info(`${months.length}ヶ月分の画像をダウンロードしました`);
+        return;
+      }
       toasts.info('画像生成中…');
       const blob = await withPrintingClass(() =>
         exportElementAsPng(/** @type {HTMLElement} */ (target))
@@ -387,6 +511,22 @@
       const target = getCaptureTarget();
       if (!target) {
         toasts.error('画面要素が見つかりませんでした');
+        return;
+      }
+      // 月またぎは月ごとに分割ダウンロード（プレビューは省略）
+      if (isMultiMonthPeriod()) {
+        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
+        toasts.info(`${months.length}ヶ月分のPDFを生成中…`);
+        for (const m of months) {
+          await withMonthPeriod(m, async () => {
+            const { pdfBlob } = await withPrintingClass(() =>
+              exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
+            );
+            downloadBlob(pdfBlob, makeFilename(koutei, 'pdf'));
+          });
+          await new Promise(r => setTimeout(r, 300));
+        }
+        toasts.info(`${months.length}ヶ月分のPDFをダウンロードしました`);
         return;
       }
       toasts.info('PDF生成中…');
@@ -534,6 +674,13 @@
         </div>
         <div class="hours-pill">{blockTotalHours(block)}h</div>
       </section>
+      {#if koutei.meta.提出種別 === '月間'}
+        <section class="extend-row">
+          <button class="ghost" onclick={extendMonthBackward} title="先頭に1ヶ月足す">⟵ +1ヶ月</button>
+          <span class="muted small">期間を伸ばす（出力は月ごと）</span>
+          <button class="ghost" onclick={extendMonthForward} title="末尾に1ヶ月足す">+1ヶ月 ⟶</button>
+        </section>
+      {/if}
 
       <div bind:this={calendarRoot}>
         <Calendar
@@ -708,6 +855,26 @@
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 700;
+  }
+  .extend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: #fafafa;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 12px;
+    justify-content: center;
+  }
+  .extend-row .ghost {
+    background: transparent;
+    border: 1px solid var(--c-border);
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .extend-row .small {
+    margin: 0;
   }
   main {
     padding: 8px;
