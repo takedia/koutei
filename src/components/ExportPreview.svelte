@@ -5,9 +5,10 @@
    *   url: string|null,
    *   filename: string,
    *   onDownload: () => void,
+   *   onSendMail: () => void,
    *   onCancel: () => void
    * }} */
-  let { open, kind, url, filename, onDownload, onCancel } = $props();
+  let { open, kind, url, filename, onDownload, onSendMail, onCancel } = $props();
 </script>
 
 {#if open && url}
@@ -30,6 +31,7 @@
       <footer>
         <div class="filename">{filename}</div>
         <button class="ghost" onclick={onCancel}>閉じる</button>
+        <button class="primary" onclick={onSendMail}>✉️ メール</button>
         <button class="primary" onclick={onDownload}>📥 ダウンロード</button>
       </footer>
     </div>

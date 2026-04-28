@@ -15,7 +15,10 @@
   import { exportElementAsPng } from '../lib/export/png.js';
   import { exportElementAsPdf } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
+  import { renderSubject, defaultBody } from '../lib/export/mail.js';
+  import { loadSettings } from '../lib/db.js';
   import ExportPreview from './ExportPreview.svelte';
+  import MailCompose from './MailCompose.svelte';
   import { isStaleChunkError, reloadOnceForStaleChunk } from '../main.js';
 
   /** @type {HTMLDivElement | null} */
@@ -30,6 +33,14 @@
   let previewBlob = $state(/** @type {Blob|null} */ (null));
   let previewUrl = $state(/** @type {string|null} */ (null));
   let previewFilename = $state('');
+
+  // メール作成モーダル状態
+  let mailOpen = $state(false);
+  let mailFilename = $state('');
+  let mailSubject = $state('');
+  let mailBody = $state('');
+  /** @type {{ラベル:string, メアド:string}[]} */
+  let mailPresets = $state([]);
 
   const isMobileUa = typeof navigator !== 'undefined' &&
     /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -282,6 +293,19 @@
     }
   }
 
+  /** Excel を生成 → ダウンロード → メール作成画面を開く */
+  async function onSendMailXlsx() {
+    if (!koutei) return;
+    try {
+      if (dirty) await save();
+      toasts.info('Excel生成中…');
+      const blob = await exportKouteiAsXlsx(koutei);
+      await startMailFlow(blob, makeFilename(koutei, 'xlsx'));
+    } catch (e) {
+      handleExportError(e);
+    }
+  }
+
   /** 画像/PDF キャプチャ対象 = meta-row + topbar + calendar を含む親 DOM */
   function getCaptureTarget() {
     return exportRoot;
@@ -375,6 +399,36 @@
     previewBlob = null;
     clearPreviewUrl();
   }
+
+  /** メール送信フロー: ファイルをダウンロードしてから MailCompose を開く */
+  async function startMailFlow(/** @type {Blob} */ blob, /** @type {string} */ filename) {
+    if (!koutei) return;
+    try {
+      // 添付用にダウンロードまで先に済ませる
+      downloadBlob(blob, filename);
+      const settings = await loadSettings();
+      mailFilename = filename;
+      mailSubject = renderSubject(settings.件名テンプレ ?? '', koutei);
+      mailBody = defaultBody(filename);
+      mailPresets = settings.宛先プリセット ?? [];
+      mailOpen = true;
+    } catch (e) {
+      handleExportError(e);
+    }
+  }
+  function previewSendMail() {
+    if (!previewBlob || !previewFilename) return;
+    const blob = previewBlob;
+    const fname = previewFilename;
+    // プレビューは閉じる（URL は MailCompose 完了後に解放したいので残す）
+    previewOpen = false;
+    startMailFlow(blob, fname);
+    // 一連完了後にプレビュー残骸も掃除
+    previewBlob = null;
+    clearPreviewUrl();
+  }
+  function mailClose() { mailOpen = false; }
+  function mailSent()  { mailOpen = false; toasts.info('メールアプリを開きました'); }
 </script>
 
 <header>
@@ -435,6 +489,9 @@
       <button class="primary" onclick={onExportPng}>🖼 画像</button>
       <button class="primary" onclick={onExportPdf}>📄 PDF</button>
     </div>
+    <div class="export-actions">
+      <button class="primary mail" onclick={onSendMailXlsx}>✉️ Excel をメール送信</button>
+    </div>
   </main>
 {/if}
 
@@ -470,7 +527,18 @@
   url={previewUrl}
   filename={previewFilename}
   onDownload={previewDownload}
+  onSendMail={previewSendMail}
   onCancel={previewClose}
+/>
+
+<MailCompose
+  open={mailOpen}
+  filename={mailFilename}
+  defaultSubject={mailSubject}
+  defaultBody={mailBody}
+  presets={mailPresets}
+  onCancel={mailClose}
+  onSend={mailSent}
 />
 
 <style>
