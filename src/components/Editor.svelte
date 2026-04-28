@@ -381,48 +381,39 @@
     if (!koutei) return;
     try {
       if (dirty) await save();
-      // 月間モードで複数月にまたがる場合は月ごとに別ファイルへ
-      if (isMultiMonthPeriod()) {
-        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        toasts.info(`${months.length}ヶ月分のExcelを生成中…`);
-        for (const m of months) {
-          await withMonthPeriod(m, async () => {
-            const blob = await exportKouteiAsXlsx(koutei);
-            downloadBlob(blob, makeFilename(koutei, 'xlsx'));
-          });
-          await new Promise(r => setTimeout(r, 300));
-        }
-        toasts.info(`${months.length}ヶ月分のExcelをダウンロードしました`);
+      const target = getCaptureTarget();
+      if (!target) {
+        toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      const blob = await exportKouteiAsXlsx(koutei);
-      downloadBlob(blob, makeFilename(koutei, 'xlsx'));
-      toasts.info('Excelをダウンロードしました');
-    } catch (e) {
-      handleExportError(e);
-    }
-  }
+      // 月間モードで複数月にまたがる場合は対象月を 1 つ選んでもらう
+      let monthPeriod = null;
+      if (isMultiMonthPeriod()) {
+        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
+        monthPeriod = pickMonthDialog(months);
+        if (!monthPeriod) return;
+      }
 
-  /** Excel を生成 → ダウンロード → メール作成画面を開く */
-  async function onSendMailXlsx() {
-    if (!koutei) return;
-    try {
-      if (dirty) await save();
-      // 複数月にまたがる場合は対象月をユーザーに選んでもらう
-      if (isMultiMonthPeriod()) {
-        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        const picked = pickMonthDialog(months);
-        if (!picked) return;
+      const doExport = async () => {
         toasts.info('Excel生成中…');
-        await withMonthPeriod(picked, async () => {
-          const blob = await exportKouteiAsXlsx(koutei);
-          await startMailFlow(blob, makeFilename(koutei, 'xlsx'));
-        });
-        return;
+        const xlsxBlob = await exportKouteiAsXlsx(koutei);
+        // プレビュー用に画面を画像化
+        const previewImgBlob = await withPrintingClass(() =>
+          exportElementAsPng(/** @type {HTMLElement} */ (target))
+        );
+        clearPreviewUrl();
+        previewKind = 'xlsx';
+        previewBlob = xlsxBlob;
+        previewUrl = URL.createObjectURL(previewImgBlob);
+        previewFilename = makeFilename(koutei, 'xlsx');
+        previewOpen = true;
+      };
+
+      if (monthPeriod) {
+        await withMonthPeriod(monthPeriod, doExport);
+      } else {
+        await doExport();
       }
-      toasts.info('Excel生成中…');
-      const blob = await exportKouteiAsXlsx(koutei);
-      await startMailFlow(blob, makeFilename(koutei, 'xlsx'));
     } catch (e) {
       handleExportError(e);
     }
@@ -473,32 +464,31 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      // 月またぎは月ごとに分割ダウンロード
+      let monthPeriod = null;
       if (isMultiMonthPeriod()) {
         const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        toasts.info(`${months.length}ヶ月分の画像を生成中…`);
-        for (const m of months) {
-          await withMonthPeriod(m, async () => {
-            const blob = await withPrintingClass(() =>
-              exportElementAsPng(/** @type {HTMLElement} */ (target))
-            );
-            downloadBlob(blob, makeFilename(koutei, 'png'));
-          });
-          await new Promise(r => setTimeout(r, 300));
-        }
-        toasts.info(`${months.length}ヶ月分の画像をダウンロードしました`);
-        return;
+        monthPeriod = pickMonthDialog(months);
+        if (!monthPeriod) return;
       }
-      toasts.info('画像生成中…');
-      const blob = await withPrintingClass(() =>
-        exportElementAsPng(/** @type {HTMLElement} */ (target))
-      );
-      clearPreviewUrl();
-      previewKind = 'png';
-      previewBlob = blob;
-      previewUrl = URL.createObjectURL(blob);
-      previewFilename = makeFilename(koutei, 'png');
-      previewOpen = true;
+
+      const doExport = async () => {
+        toasts.info('画像生成中…');
+        const blob = await withPrintingClass(() =>
+          exportElementAsPng(/** @type {HTMLElement} */ (target))
+        );
+        clearPreviewUrl();
+        previewKind = 'png';
+        previewBlob = blob;
+        previewUrl = URL.createObjectURL(blob);
+        previewFilename = makeFilename(koutei, 'png');
+        previewOpen = true;
+      };
+
+      if (monthPeriod) {
+        await withMonthPeriod(monthPeriod, doExport);
+      } else {
+        await doExport();
+      }
     } catch (e) {
       handleExportError(e);
     }
@@ -513,33 +503,31 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      // 月またぎは月ごとに分割ダウンロード（プレビューは省略）
+      let monthPeriod = null;
       if (isMultiMonthPeriod()) {
         const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        toasts.info(`${months.length}ヶ月分のPDFを生成中…`);
-        for (const m of months) {
-          await withMonthPeriod(m, async () => {
-            const { pdfBlob } = await withPrintingClass(() =>
-              exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
-            );
-            downloadBlob(pdfBlob, makeFilename(koutei, 'pdf'));
-          });
-          await new Promise(r => setTimeout(r, 300));
-        }
-        toasts.info(`${months.length}ヶ月分のPDFをダウンロードしました`);
-        return;
+        monthPeriod = pickMonthDialog(months);
+        if (!monthPeriod) return;
       }
-      toasts.info('PDF生成中…');
-      const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
-        exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
-      );
-      const fname = makeFilename(koutei, 'pdf');
-      clearPreviewUrl();
-      previewKind = 'pdf';
-      previewBlob = pdfBlob;                                    // ダウンロード/メール用の本体
-      previewUrl = URL.createObjectURL(previewImgBlob);         // プレビュー画像（ImgBlob）
-      previewFilename = fname;
-      previewOpen = true;
+
+      const doExport = async () => {
+        toasts.info('PDF生成中…');
+        const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
+          exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
+        );
+        clearPreviewUrl();
+        previewKind = 'pdf';
+        previewBlob = pdfBlob;
+        previewUrl = URL.createObjectURL(previewImgBlob);
+        previewFilename = makeFilename(koutei, 'pdf');
+        previewOpen = true;
+      };
+
+      if (monthPeriod) {
+        await withMonthPeriod(monthPeriod, doExport);
+      } else {
+        await doExport();
+      }
     } catch (e) {
       handleExportError(e);
     }
@@ -637,7 +625,7 @@
 <header>
   <button class="icon" onclick={back} aria-label="戻る">←</button>
   <h1>工程表 {dirty ? '●' : ''}</h1>
-  <button class="primary" onclick={save}>💾</button>
+  <button class="primary save-btn" class:dirty onclick={save}>💾 保存{dirty ? ' *' : ''}</button>
 </header>
 
 {#if loading}
@@ -702,9 +690,6 @@
       <button class="primary" onclick={onExportXlsx}>📊 Excel</button>
       <button class="primary" onclick={onExportPng}>🖼 画像</button>
       <button class="primary" onclick={onExportPdf}>📄 PDF</button>
-    </div>
-    <div class="export-actions">
-      <button class="primary mail" onclick={onSendMailXlsx}>✉️ Excel をメール送信</button>
     </div>
   </main>
 {/if}
@@ -775,6 +760,19 @@
     font-size: 22px;
     min-width: 36px;
     padding: 0;
+  }
+  .save-btn {
+    font-weight: 700;
+    padding: 0 14px;
+  }
+  .save-btn.dirty {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
   }
   h1 {
     flex: 1;

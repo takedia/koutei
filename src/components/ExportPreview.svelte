@@ -1,7 +1,7 @@
 <script>
   /** @type {{
    *   open: boolean,
-   *   kind: 'png'|'pdf'|null,
+   *   kind: 'png'|'pdf'|'xlsx'|null,
    *   url: string|null,
    *   filename: string,
    *   onDownload: () => void,
@@ -9,6 +9,12 @@
    *   onCancel: () => void
    * }} */
   let { open, kind, url, filename, onDownload, onSendMail, onCancel } = $props();
+
+  let title = $derived(
+    kind === 'pdf'  ? 'PDF プレビュー' :
+    kind === 'xlsx' ? 'Excel プレビュー（画面イメージ）' :
+                      '画像 プレビュー'
+  );
 </script>
 
 {#if open && url}
@@ -16,9 +22,16 @@
     <button class="bg" onclick={onCancel} aria-label="閉じる"></button>
     <div class="sheet">
       <header>
-        <h2>{kind === 'pdf' ? 'PDF プレビュー' : '画像 プレビュー'}</h2>
+        <h2>{title}</h2>
         <button class="x" onclick={onCancel} aria-label="閉じる">×</button>
       </header>
+
+      {#if kind === 'xlsx'}
+        <p class="xlsx-note">
+          Excel ファイルそのものはブラウザ上で表示できないため、画面イメージで内容を確認してください。
+          ダウンロードまたはメール送信すると <code>.xlsx</code> 形式のファイルが渡されます。
+        </p>
+      {/if}
 
       <div class="body">
         {#if url}
@@ -105,4 +118,19 @@
   }
   .ghost { background: transparent; }
   footer .primary { min-width: 120px; }
+  .xlsx-note {
+    margin: 0;
+    padding: 8px 14px;
+    background: #fff7d6;
+    border-bottom: 1px solid #f6d860;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #92400e;
+  }
+  .xlsx-note code {
+    background: rgba(255,255,255,0.7);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
 </style>
