@@ -207,15 +207,25 @@
     cellEditorOpen = true;
   }
 
-  /** 期間種別切替（即時切替） */
+  /** 期間種別切替（即時切替）
+   * 月間モード: 開始月の 1 日 ～ 既存の終了の月の末日まで（複数月にまたがるならそのまま広げる） */
   function changeKind(/** @type {'2週'|'月間'} */ kind) {
     if (!koutei) return;
     if (koutei.meta.提出種別 === kind) return;
 
-    const startBase = koutei.meta.対象期間.開始;
-    const newStart = kind === '月間' ? dayjs(startBase).startOf('month').format('YYYY-MM-DD') : startBase;
-    const days = kind === '月間' ? dayjs(newStart).daysInMonth() : 14;
-    const newEnd = addDays(newStart, days - 1);
+    const oldStart = koutei.meta.対象期間.開始;
+    const oldEnd = koutei.meta.対象期間.終了;
+
+    let newStart, newEnd;
+    if (kind === '月間') {
+      newStart = dayjs(oldStart).startOf('month').format('YYYY-MM-DD');
+      // 既存の終了が次月以降にまたがっていたらその月末まで含める
+      newEnd = dayjs(oldEnd).endOf('month').format('YYYY-MM-DD');
+    } else {
+      // 2週: 開始日はそのまま、14 日分
+      newStart = oldStart;
+      newEnd = addDays(newStart, 13);
+    }
 
     koutei.meta.提出種別 = kind;
     koutei.meta.対象期間.開始 = newStart;
@@ -223,6 +233,36 @@
 
     for (const b of koutei.工事ブロック) {
       b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
+    }
+    markDirty();
+  }
+
+  /** 月間モードで終了月をさらに +1 ヶ月（月末まで）伸ばす */
+  function extendMonth() {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const newEnd = dayjs(koutei.meta.対象期間.終了)
+      .add(1, 'month')
+      .endOf('month')
+      .format('YYYY-MM-DD');
+    koutei.meta.対象期間.終了 = newEnd;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(koutei.meta.対象期間.開始, newEnd, b.固定行数, b.日次セル);
+    }
+    markDirty();
+  }
+
+  /** 月間モードで先頭月をさらに -1 ヶ月（月初まで）伸ばす */
+  function extendMonthBackward() {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const newStart = dayjs(koutei.meta.対象期間.開始)
+      .subtract(1, 'month')
+      .startOf('month')
+      .format('YYYY-MM-DD');
+    koutei.meta.対象期間.開始 = newStart;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(newStart, koutei.meta.対象期間.終了, b.固定行数, b.日次セル);
     }
     markDirty();
   }
@@ -252,12 +292,26 @@
     }
   }
 
-  /** @param {number} delta */
-  function shiftPeriod(delta) {
+  /** 2週モード: 期間を ±delta 日シフト */
+  function shiftPeriod(/** @type {number} */ delta) {
     if (!koutei) return;
     if (koutei.meta.提出種別 !== '2週') return;
     const newStart = addDays(koutei.meta.対象期間.開始, delta);
     const newEnd = addDays(newStart, 13);
+    koutei.meta.対象期間.開始 = newStart;
+    koutei.meta.対象期間.終了 = newEnd;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
+    }
+    markDirty();
+  }
+
+  /** 月間モード: 表示を 1 ヶ月前後にスライド（期間長は維持） */
+  function shiftMonth(/** @type {number} */ delta) {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const newStart = dayjs(koutei.meta.対象期間.開始).add(delta, 'month').format('YYYY-MM-DD');
+    const newEnd = dayjs(koutei.meta.対象期間.終了).add(delta, 'month').format('YYYY-MM-DD');
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
     for (const b of koutei.工事ブロック) {
@@ -482,14 +536,25 @@
         <div class="period">
           {#if koutei.meta.提出種別 === '2週'}
             <button class="nav" onclick={() => shiftPeriod(-7)} aria-label="1週前">‹</button>
+          {:else}
+            <button class="nav" onclick={() => shiftMonth(-1)} aria-label="1ヶ月前">‹</button>
           {/if}
           <span>{formatRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了)}</span>
           {#if koutei.meta.提出種別 === '2週'}
             <button class="nav" onclick={() => shiftPeriod(7)} aria-label="1週後">›</button>
+          {:else}
+            <button class="nav" onclick={() => shiftMonth(1)} aria-label="1ヶ月後">›</button>
           {/if}
         </div>
         <div class="hours-pill">{blockTotalHours(block)}h</div>
       </section>
+      {#if koutei.meta.提出種別 === '月間'}
+        <section class="extend-row">
+          <button class="ghost" onclick={extendMonthBackward} title="先頭月の前にもう 1 ヶ月足す">⟵ +1ヶ月</button>
+          <span class="muted small">期間を伸ばす</span>
+          <button class="ghost" onclick={extendMonth} title="末尾の月のあとにもう 1 ヶ月足す">+1ヶ月 ⟶</button>
+        </section>
+      {/if}
 
       <div bind:this={calendarRoot}>
         <Calendar
@@ -663,6 +728,26 @@
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 700;
+  }
+  .extend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: #fafafa;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 12px;
+    justify-content: center;
+  }
+  .extend-row .ghost {
+    background: transparent;
+    border: 1px solid var(--c-border);
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .extend-row .small {
+    margin: 0;
   }
   main {
     padding: 8px;
