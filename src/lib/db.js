@@ -145,20 +145,28 @@ export async function loadSettings() {
     await set('settings', s);
     return s;
   }
-  // 移行：旧設定で 車両プリセット に入っていた回送系を 回送プリセット に移動
+  // 全フィールドの有無を検査し、欠けていればデフォルトで補う
   let mutated = false;
-  if (!Array.isArray(s.回送プリセット)) { s.回送プリセット = []; mutated = true; }
-  if (Array.isArray(s.車両プリセット)) {
-    const moved = s.車両プリセット.filter(v => REQUIRED_KAISO.includes(v));
-    if (moved.length) {
-      for (const v of moved) {
-        if (!s.回送プリセット.includes(v)) s.回送プリセット.push(v);
-      }
-      s.車両プリセット = s.車両プリセット.filter(v => !REQUIRED_KAISO.includes(v));
+  const def = defaultSettings();
+  for (const key of /** @type {(keyof typeof def)[]} */ (Object.keys(def))) {
+    if (s[key] === undefined) {
+      s[key] = def[key];
       mutated = true;
     }
-  } else {
-    s.車両プリセット = [];
+  }
+  // 旧バージョン互換：配列であるべきフィールドの保証
+  if (!Array.isArray(s.回送プリセット)) { s.回送プリセット = []; mutated = true; }
+  if (!Array.isArray(s.車両プリセット)) { s.車両プリセット = []; mutated = true; }
+  if (!Array.isArray(s.重機プリセット)) { s.重機プリセット = []; mutated = true; }
+  if (!Array.isArray(s.工種辞書))      { s.工種辞書      = [...KOUSHU_DEFAULT]; mutated = true; }
+  if (!Array.isArray(s.宛先プリセット)) { s.宛先プリセット = []; mutated = true; }
+  // 旧設定で 車両プリセット に入っていた回送系を 回送プリセット に移動
+  const moved = s.車両プリセット.filter(v => REQUIRED_KAISO.includes(v));
+  if (moved.length) {
+    for (const v of moved) {
+      if (!s.回送プリセット.includes(v)) s.回送プリセット.push(v);
+    }
+    s.車両プリセット = s.車両プリセット.filter(v => !REQUIRED_KAISO.includes(v));
     mutated = true;
   }
   // 必須回送プリセットの追補

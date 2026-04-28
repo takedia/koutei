@@ -6,6 +6,16 @@
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
+  let loadError = $state(/** @type {string|null} */ (null));
+
+  onMount(async () => {
+    try {
+      s = await loadSettings();
+    } catch (e) {
+      console.error('settings load failed', e);
+      loadError = String(/** @type {any} */ (e)?.message ?? e);
+    }
+  });
 
   // ── ハッシュ生成ツール
   let hashInput = $state('');
@@ -78,7 +88,9 @@
 </header>
 
 <main>
-  {#if !s}
+  {#if loadError}
+    <p class="err">設定の読み込みに失敗しました: {loadError}</p>
+  {:else if !s}
     <p>読み込み中…</p>
   {:else}
     <section>
@@ -214,14 +226,6 @@
     max-width: 720px;
     margin: 0 auto;
   }
-  .banner {
-    background: #fff7d6;
-    border: 1px solid #f6d860;
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin: 0;
-    font-size: 14px;
-  }
   section {
     border: 1px solid var(--c-border);
     border-radius: 10px;
@@ -331,5 +335,13 @@
   }
   .recip-add button {
     flex-shrink: 0;
+  }
+  .err {
+    color: #dc2626;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0;
   }
 </style>
