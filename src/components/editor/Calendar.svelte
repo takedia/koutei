@@ -23,14 +23,6 @@
   let pendingTap = $state(null);
   let dragMoved = $state(false);
 
-  // タッチでスクロールと共存させるための長押し待機（タッチ/ペンのみ）
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let longPressTimer = null;
-  /** @type {{ band: number, date: string, x: number, y: number, target: HTMLElement, pointerId: number } | null} */
-  let pendingPress = null;
-  const LONG_PRESS_MS = 350;
-  const MOVE_TOL_PX = 10;
-
   const COL_WIDTH = 64;
   const KEY_WIDTH = 38;       // 項目名（人員/重機 等）の固定列
   const SUB_WIDTH = 76;       // サブ行ラベル（自社/外注 等）の固定列
@@ -48,24 +40,6 @@
 
   // ──── ドラッグ選択 ────
 
-  /** ドラッグ選択モードを実際に開始（マウスは即座、タッチは長押し後） */
-  function activateDrag(/** @type {number} */ bandIdx, /** @type {string} */ date, /** @type {HTMLElement} */ target, /** @type {number} */ pointerId) {
-    pendingTap = { band: bandIdx, date };
-    dragging = { band: bandIdx, startDate: date, endDate: date };
-    dragMoved = false;
-    target.setPointerCapture?.(pointerId);
-    // ハプティック（対応端末のみ）：選択モードに入ったよ、の合図
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      try { navigator.vibrate(20); } catch {}
-    }
-  }
-
-  /** 待機中のロングプレスとタップを破棄 */
-  function clearPending() {
-    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    pendingPress = null;
-  }
-
   /**
    * @param {number} bandIdx
    * @param {string} date
@@ -73,45 +47,16 @@
    */
   function onCellPointerDown(bandIdx, date, ev) {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-    clearPending();
-
-    if (ev.pointerType === 'mouse') {
-      // マウスはスクロール衝突しないので即ドラッグ開始
-      activateDrag(bandIdx, date, /** @type {HTMLElement} */ (ev.currentTarget), ev.pointerId);
-      return;
-    }
-
-    // タッチ/ペン：長押しまでドラッグ開始しない（スクロール優先）
-    pendingPress = {
-      band: bandIdx,
-      date,
-      x: ev.clientX,
-      y: ev.clientY,
-      target: /** @type {HTMLElement} */ (ev.currentTarget),
-      pointerId: ev.pointerId
-    };
-    longPressTimer = setTimeout(() => {
-      if (!pendingPress) return;
-      const p = pendingPress;
-      pendingPress = null;
-      longPressTimer = null;
-      activateDrag(p.band, p.date, p.target, p.pointerId);
-    }, LONG_PRESS_MS);
+    pendingTap = { band: bandIdx, date };
+    dragging = { band: bandIdx, startDate: date, endDate: date };
+    dragMoved = false;
+    /** @type {HTMLElement} */ (ev.currentTarget).setPointerCapture?.(ev.pointerId);
   }
 
   /**
    * @param {PointerEvent} ev
    */
   function onCellPointerMove(ev) {
-    // 長押し待機中：閾値超え移動はスクロール意図と判断してキャンセル
-    if (pendingPress) {
-      const dx = ev.clientX - pendingPress.x;
-      const dy = ev.clientY - pendingPress.y;
-      if (Math.hypot(dx, dy) > MOVE_TOL_PX) {
-        clearPending();
-      }
-      return;
-    }
     if (!dragging) return;
     const el = document.elementFromPoint(ev.clientX, ev.clientY);
     const cell = /** @type {HTMLElement|null} */ (el?.closest?.('[data-band-cell]') ?? null);
@@ -130,23 +75,6 @@
    * @param {PointerEvent} ev
    */
   function onCellPointerUp(ev) {
-    // 長押し前に離した：単一日タップとして開く
-    if (pendingPress) {
-      const { band, date } = pendingPress;
-      clearPending();
-      onPickKoushu((label, opts) => {
-        if (!label) return;
-        const bar = createBar(label, date, date);
-        if (opts?.休工) bar.休工 = true;
-        block.バンド[band].バー.push(bar);
-        block.バンド = block.バンド;
-        onChange();
-        const newBarIdx = block.バンド[band].バー.length - 1;
-        onEditBar(band, newBarIdx);
-      });
-      return;
-    }
-
     if (!dragging) return;
     const { band, startDate, endDate } = dragging;
     dragging = null;
@@ -167,7 +95,6 @@
   }
 
   function onCellPointerCancel() {
-    clearPending();
     dragging = null;
     pendingTap = null;
     dragMoved = false;
@@ -607,15 +534,12 @@
 
   .band-cell {
     cursor: pointer;
-    /* タッチではスクロール優先。長押しで setPointerCapture を呼ぶことで
-       それ以降ブラウザのスクロールに渡らずドラッグ選択になる。 */
-    touch-action: pan-x pan-y;
-    /* Android Chrome のデフォルト長押し動作（テキスト選択・コンテキスト
-       メニュー・ドラッグ&ドロップ）を抑制して、こちらの長押しを邪魔しない */
+    /* タッチでも即ドラッグ選択（スクロールはセル外＝日付ヘッダや
+       項目列・空白部分で行う） */
+    touch-action: none;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
-    -webkit-user-drag: none;
   }
   .band-cell.pending {
     background: #fff3a3;
