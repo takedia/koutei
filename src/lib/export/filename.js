@@ -35,9 +35,13 @@ export function isProblematicForIosShare(/** @type {Blob} */ blob) {
 }
 
 /**
- * Blob をダウンロード（全プラットフォーム共通: <a download> + blob URL）。
- * iOS Safari ではファイル名のみのテキストファイルが Files に残る挙動が
- * あるが、実バイナリも保存されるため許容（テキストは手動で削除）。
+ * Blob をダウンロード。
+ *
+ * - iOS Safari: blob URL を新タブで開く。
+ *   PDF はインライン表示 → Safari の共有ボタンで「ファイルに保存」、
+ *   xlsx 等はダウンロードプロンプト or 「Numbers で開く」が出る。
+ *   <a download> + click() は iOS 17/18 で無反応になることがあるので使わない。
+ * - PC / Android: 従来通り <a download> + blob URL で自動ダウンロード。
  *
  * @param {Blob} blob
  * @param {string} filename
@@ -45,6 +49,19 @@ export function isProblematicForIosShare(/** @type {Blob} */ blob) {
  */
 export async function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
+
+  if (isIos()) {
+    // iOS は新タブで blob を開いて Safari に処理させる
+    const win = window.open(url, '_blank');
+    if (!win) {
+      // ポップアップブロック等で開けなかった時は同タブ遷移
+      location.href = url;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
+  // PC / Android
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -53,5 +70,5 @@ export async function downloadBlob(blob, filename) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), isIos() ? 60_000 : 0);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
