@@ -35,20 +35,71 @@ export function isProblematicForIosShare(/** @type {Blob} */ blob) {
 }
 
 /**
+ * Service Worker 経由のダウンロード。
+ * 仮想 URL を Cache に Response として登録して、SW が
+ * Content-Disposition: attachment 付きで返すことで、
+ * iOS Safari でも HTTP レスポンスとして処理されて確実に
+ * バイナリのまま保存される。
+ *
+ * @param {Blob} blob
+ * @param {string} filename
+ * @returns {Promise<boolean>} 成功した場合 true
+ */
+async function downloadViaServiceWorker(blob, filename) {
+  if (!('serviceWorker' in navigator) || !('caches' in window)) return false;
+  const reg = await navigator.serviceWorker.ready;
+  if (!reg || !navigator.serviceWorker.controller) return false;
+
+  const id = (crypto?.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2));
+  const path = `__download/${id}/${encodeURIComponent(filename)}`;
+  const fullUrl = new URL(path, location.href).href;
+
+  const response = new Response(blob, {
+    headers: {
+      'Content-Type': blob.type || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+      'Content-Length': String(blob.size)
+    }
+  });
+
+  const cache = await caches.open('koutei-downloads-v1');
+  await cache.put(fullUrl, response);
+
+  // ダウンロード起動: <a download> でも target="_blank" でもブラウザ次第。
+  // iOS は同タブ遷移で確実にダウンロード扱いになる。
+  const a = document.createElement('a');
+  a.href = fullUrl;
+  a.download = filename;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // 一定時間後にキャッシュから削除
+  setTimeout(() => { cache.delete(fullUrl).catch(() => {}); }, 60_000);
+  return true;
+}
+
+/**
  * Blob をダウンロード。
  *
- * 全プラットフォーム共通で <a download> + blob URL を使う。
- * - iOS Safari の Web Share API は「ファイルに保存」した時に
- *   実バイナリではなくファイル名だけのテキストファイルが残る
- *   挙動があるため、Web Share は使わない。
- * - iOS 14.5+ は <a download> でも blob URL を実バイナリとして
- *   保存できるので、共通パスで動く想定。
+ * 1. Service Worker 経由（推奨。iOS Safari で blob URL が
+ *    .txt 化する問題を完全回避）
+ * 2. SW が使えない環境では従来の <a download> + blob URL
  *
  * @param {Blob} blob
  * @param {string} filename
  * @returns {Promise<void>}
  */
 export async function downloadBlob(blob, filename) {
+  try {
+    const ok = await downloadViaServiceWorker(blob, filename);
+    if (ok) return;
+  } catch (e) {
+    console.warn('SW download failed, fallback to blob URL', e);
+  }
+  // フォールバック: blob URL + <a download>
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -58,6 +109,5 @@ export async function downloadBlob(blob, filename) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // iOS Safari は遅延クリーンアップが必要
   setTimeout(() => URL.revokeObjectURL(url), isIos() ? 60_000 : 0);
 }
