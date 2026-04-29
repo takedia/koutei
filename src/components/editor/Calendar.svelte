@@ -487,16 +487,22 @@
     position: sticky;
     left: 0;
     z-index: 3;
-    background: #fff;
+    background-color: #fff;
   }
   .sticky-l2 {
     position: sticky;
     left: var(--kw);
     z-index: 3;
-    background: #f8f9fa;
+    background-color: #f8f9fa;
     border-right: 2px solid var(--c-border);
   }
-  .head.sticky-l1 { z-index: 5; background: #f3f4f6; border-right: 2px solid var(--c-border); }
+  /* 明示的な不透明背景（html2canvas キャプチャや横スクロール時の透過対策） */
+  .labelcell.sticky-l1     { background-color: #ffffff; }
+  .key-cell.sticky-l1      { background-color: #f8f9fa; }
+  .key-cell-wide.sticky-l1 { background-color: #f8f9fa; }
+  .ctrl-row.sticky-l1,
+  .ctrl-row-fixed.sticky-l1 { background-color: #fafafa; }
+  .head.sticky-l1 { z-index: 5; background-color: #f3f4f6; border-right: 2px solid var(--c-border); }
 
   .labelcell {
     padding: 2px 6px;
