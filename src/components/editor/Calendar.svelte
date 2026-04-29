@@ -315,35 +315,36 @@
         {band.バー.reduce((s, b) => s + calcBarHours(b), 0)}h
       </div>
 
-      <!-- バー：視覚セグメント（日ごと）+ ラベル（バー全範囲に収まる別グリッドアイテム） -->
+      <!-- バー：視覚セグメント（日ごと）+ ラベル（バー全範囲に収まる別グリッドアイテム）
+           可視範囲外の日付しか持たないバーは描画しない（項目列にラベルが被るバグ対策） -->
       {#each band.バー as bar, idx (idx)}
         {@const days = barDays(bar)}
-        {@const sIdx = dates.indexOf(bar.開始)}
-        {@const eIdx = dates.indexOf(bar.終了)}
-        {@const sCol = sIdx + 3}
-        {@const eCol = eIdx + 3}
-        {#each days as d, di (d)}
-          {@const col = colIdxOf(d)}
-          {@const state = bar.日別?.[d] ?? '全日'}
-          {#if col >= 2}
-            <button
-              class="bar-seg {state.toLowerCase()} {bar.休工 ? 'kyoko' : ''} {di === 0 ? 'is-first' : ''} {di === days.length - 1 ? 'is-last' : ''}"
-              style="grid-column: {col}; grid-row: {bandStartRow + bi};"
-              onclick={(e) => onBarTap(bi, idx, e)}
-              aria-label={`バー: ${bar.ラベル}`}
-            ></button>
+        {#if days.length > 0}
+          {@const sCol = dates.indexOf(days[0]) + 3}
+          {@const eCol = dates.indexOf(days[days.length - 1]) + 3}
+          {#each days as d, di (d)}
+            {@const col = colIdxOf(d)}
+            {@const state = bar.日別?.[d] ?? '全日'}
+            {#if col >= 3}
+              <button
+                class="bar-seg {state.toLowerCase()} {bar.休工 ? 'kyoko' : ''} {di === 0 ? 'is-first' : ''} {di === days.length - 1 ? 'is-last' : ''}"
+                style="grid-column: {col}; grid-row: {bandStartRow + bi};"
+                onclick={(e) => onBarTap(bi, idx, e)}
+                aria-label={`バー: ${bar.ラベル}`}
+              ></button>
+            {/if}
+          {/each}
+          {#if sCol >= 3 && eCol >= 3}
+            <div
+              class="bar-label"
+              style="grid-column: {sCol} / {eCol + 1}; grid-row: {bandStartRow + bi};"
+              title={buildBarTitle(bar)}
+            >
+              <span class="bar-main">{bar.ラベル}</span>
+              {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
+              <span class="bar-h">{calcBarHours(bar)}h</span>
+            </div>
           {/if}
-        {/each}
-        {#if sCol >= 2 && eCol >= 2}
-          <div
-            class="bar-label"
-            style="grid-column: {sCol} / {eCol + 1}; grid-row: {bandStartRow + bi};"
-            title={buildBarTitle(bar)}
-          >
-            <span class="bar-main">{bar.ラベル}</span>
-            {#if bar.サブラベル}<span class="bar-sub">{bar.サブラベル}</span>{/if}
-            <span class="bar-h">{calcBarHours(bar)}h</span>
-          </div>
         {/if}
       {/each}
     {/each}
