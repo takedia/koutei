@@ -4,7 +4,7 @@
   import { createKoutei } from '../lib/types.js';
   import { screen, editingId, draftKoutei, toasts } from '../lib/stores.js';
   import { formatRange } from '../lib/utils/date.js';
-  import { version, buildLabel } from '../lib/version.js';
+  import { versionLabel } from '../lib/version.js';
   import { exportAllAsJson, importFromJson } from '../lib/backup.js';
   import { downloadBlob } from '../lib/export/filename.js';
   import dayjs from 'dayjs';
@@ -161,7 +161,7 @@
     </div>
   {/if}
 
-  <p class="version">v{version}{buildLabel() ? ` · ${buildLabel()}` : ''}</p>
+  <p class="version">{versionLabel()}</p>
 </main>
 
 <style>

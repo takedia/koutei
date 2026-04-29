@@ -1,6 +1,6 @@
 <script>
   import { verifyPassword, authed, authError } from '../lib/auth.js';
-  import { version, buildLabel } from '../lib/version.js';
+  import { versionLabel } from '../lib/version.js';
   import { notifyAccess } from '../lib/beacon.js';
 
   let password = $state('');
@@ -53,7 +53,7 @@
       <p class="err">{errorMsg}</p>
     {/if}
 
-    <p class="version">v{version}{buildLabel() ? ` · ${buildLabel()}` : ''}</p>
+    <p class="version">{versionLabel()}</p>
   </form>
 </div>
 
