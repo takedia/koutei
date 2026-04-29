@@ -24,12 +24,11 @@ window.addEventListener('unhandledrejection', e => {
 // 正常起動した時点でフラグを解除（次回のために）
 window.addEventListener('load', () => sessionStorage.removeItem('koutei.reloaded-once'));
 
-// Service Worker（ダウンロード仮想 URL 配信用）。iOS Safari で
-// blob URL の <a download> が .txt 化する問題を回避するため。
-if ('serviceWorker' in navigator) {
-  const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-  navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL })
-    .catch(err => console.warn('SW registration failed', err));
+// 既に登録されている SW があれば解除（旧バージョンのダウンロード SW 残骸対策）
+if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+  navigator.serviceWorker.getRegistrations()
+    .then(regs => regs.forEach(r => r.unregister().catch(() => {})))
+    .catch(() => {});
 }
 
 const app = mount(App, {
