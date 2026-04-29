@@ -556,8 +556,10 @@
     color: #6b7280;
   }
   /* バーラベル：バー範囲を覆う別グリッドアイテム。
-     セル幅は max-content で広がるため overflow させない */
+     セル幅は max-content で広がるため overflow させない。
+     position: relative を付けて z-index を確実に有効化（html2canvas 互換）。 */
   .bar-label {
+    position: relative;
     align-self: center;
     min-height: 32px;
     display: flex;
