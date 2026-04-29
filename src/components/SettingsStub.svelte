@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { loadSettings, saveSettings, resetSettings } from '../lib/db.js';
+  import { loadSettings, saveSettings, resetSettings, isDefaultPreset } from '../lib/db.js';
   import { screen, toasts } from '../lib/stores.js';
   import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
   import { fetchSharedRecipients, formatRecipientsJson } from '../lib/recipients.js';
@@ -249,12 +249,14 @@
 
     <section>
       <h2>工種辞書（{s.工種辞書.length}件）</h2>
-      <p class="muted small">× で削除（即時保存・取り消し不可）</p>
+      <p class="muted small">追加した語句のみ × で削除可（デフォルト語句は削除不可）</p>
       <div class="preset-grid">
         {#each s.工種辞書 as k (k)}
-          <div class="preset-chip">
+          <div class="preset-chip" class:locked={isDefaultPreset('工種辞書', k)}>
             <span>{k}</span>
-            <button class="x" onclick={() => removeFromPreset('工種辞書', k)} aria-label={`${k} を削除`}>×</button>
+            {#if !isDefaultPreset('工種辞書', k)}
+              <button class="x" onclick={() => removeFromPreset('工種辞書', k)} aria-label={`${k} を削除`}>×</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -264,9 +266,11 @@
       <h2>重機プリセット</h2>
       <div class="preset-grid">
         {#each s.重機プリセット as k (k)}
-          <div class="preset-chip">
+          <div class="preset-chip" class:locked={isDefaultPreset('重機プリセット', k)}>
             <span>{k}</span>
-            <button class="x" onclick={() => removeFromPreset('重機プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {#if !isDefaultPreset('重機プリセット', k)}
+              <button class="x" onclick={() => removeFromPreset('重機プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -276,9 +280,11 @@
       <h2>車両プリセット</h2>
       <div class="preset-grid">
         {#each s.車両プリセット as k (k)}
-          <div class="preset-chip">
+          <div class="preset-chip" class:locked={isDefaultPreset('車両プリセット', k)}>
             <span>{k}</span>
-            <button class="x" onclick={() => removeFromPreset('車両プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {#if !isDefaultPreset('車両プリセット', k)}
+              <button class="x" onclick={() => removeFromPreset('車両プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -288,9 +294,11 @@
       <h2>回送プリセット</h2>
       <div class="preset-grid">
         {#each s.回送プリセット as k (k)}
-          <div class="preset-chip">
+          <div class="preset-chip" class:locked={isDefaultPreset('回送プリセット', k)}>
             <span>{k}</span>
-            <button class="x" onclick={() => removeFromPreset('回送プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {#if !isDefaultPreset('回送プリセット', k)}
+              <button class="x" onclick={() => removeFromPreset('回送プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -300,9 +308,11 @@
       <h2>その他プリセット</h2>
       <div class="preset-grid">
         {#each s.その他プリセット as k (k)}
-          <div class="preset-chip">
+          <div class="preset-chip" class:locked={isDefaultPreset('その他プリセット', k)}>
             <span>{k}</span>
-            <button class="x" onclick={() => removeFromPreset('その他プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {#if !isDefaultPreset('その他プリセット', k)}
+              <button class="x" onclick={() => removeFromPreset('その他プリセット', k)} aria-label={`${k} を削除`}>×</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -615,8 +625,20 @@
     min-height: 34px;
   }
   .preset-chip > span {
-    padding: 0 4px 0 10px;
+    padding: 0 10px;
     font-size: 13px;
+  }
+  /* デフォルト由来（削除不可）はやや薄い背景＋鍵アイコンで識別 */
+  .preset-chip.locked {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+  .preset-chip.locked > span {
+    padding: 0 10px;
+  }
+  .preset-chip.locked > span::before {
+    content: '🔒 ';
+    font-size: 10px;
   }
   .preset-chip .x {
     border: none;

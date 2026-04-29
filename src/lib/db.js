@@ -218,11 +218,28 @@ function defaultSettings() {
     PAT暗号化: null,
     宛先プリセット: [],
     工種辞書: [...KOUSHU_DEFAULT],
-    重機プリセット: ['0.7BH', '0.45BH', '0.25BH','0.15BH', 'ラフター25t', 'ラフター50t'],
-    車両プリセット: ['10tD','4tD','3tD', '2tD', '4tユニック'],
-    回送プリセット: ['10tセルフ', '20tセルフ', '特車'],
-    その他プリセット: ['プレート', 'ランマ', 'ハンドローラー'],
+    重機プリセット: [...DEFAULT_PRESETS.重機プリセット],
+    車両プリセット: [...DEFAULT_PRESETS.車両プリセット],
+    回送プリセット: [...DEFAULT_PRESETS.回送プリセット],
+    その他プリセット: [...DEFAULT_PRESETS.その他プリセット],
     件名テンプレ: '{職長名} [工程表] {工事番号} {期間}',
     自分のリポ: null
   };
+}
+
+/**
+ * プリセットの「デフォルト（出荷時）」値。
+ * これに含まれる項目は設定画面でも × 削除を出さない。
+ */
+export const DEFAULT_PRESETS = /** @type {const} */ ({
+  重機プリセット:   ['0.7BH', '0.45BH', '0.25BH', '0.15BH', 'ラフター25t', 'ラフター50t'],
+  車両プリセット:   ['10tD', '4tD', '3tD', '2tD', '4tユニック'],
+  回送プリセット:   ['10tセルフ', '20tセルフ', '特車'],
+  その他プリセット: ['プレート', 'ランマ', 'ハンドローラー'],
+  工種辞書: KOUSHU_DEFAULT
+});
+
+/** 指定キー・項目がデフォルト由来かどうか */
+export function isDefaultPreset(/** @type {keyof DEFAULT_PRESETS} */ key, /** @type {string} */ value) {
+  return DEFAULT_PRESETS[key]?.includes(value) ?? false;
 }
