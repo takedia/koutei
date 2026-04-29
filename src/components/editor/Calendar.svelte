@@ -370,6 +370,7 @@
           onpointermove={onCellPointerMove}
           onpointerup={onCellPointerUp}
           onpointercancel={onCellPointerCancel}
+          oncontextmenu={(e) => e.preventDefault()}
           aria-label={`${d} 項目${bi+1}`}
         ></button>
       {/each}
@@ -609,6 +610,12 @@
     /* タッチではスクロール優先。長押しで setPointerCapture を呼ぶことで
        それ以降ブラウザのスクロールに渡らずドラッグ選択になる。 */
     touch-action: pan-x pan-y;
+    /* Android Chrome のデフォルト長押し動作（テキスト選択・コンテキスト
+       メニュー・ドラッグ&ドロップ）を抑制して、こちらの長押しを邪魔しない */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
   }
   .band-cell.pending {
     background: #fff3a3;
