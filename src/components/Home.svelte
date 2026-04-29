@@ -5,6 +5,12 @@
   import { screen, editingId, draftKoutei, toasts } from '../lib/stores.js';
   import { formatRange } from '../lib/utils/date.js';
   import { version, buildLabel } from '../lib/version.js';
+  import { exportAllAsJson, importFromJson } from '../lib/backup.js';
+  import { downloadBlob } from '../lib/export/filename.js';
+  import dayjs from 'dayjs';
+
+  /** @type {HTMLInputElement | null} */
+  let importFileInput = $state(null);
 
   /** @type {[string, import('../lib/db.js').IndexEntry[]][]} */
   let groups = $state([]);
@@ -32,6 +38,42 @@
     screen.set('editor');
   }
 
+  async function backupExport() {
+    try {
+      const json = await exportAllAsJson();
+      const blob = new Blob([json], { type: 'application/json' });
+      const fname = `koutei-backup_${dayjs().format('YYYYMMDD-HHmm')}.json`;
+      await downloadBlob(blob, fname);
+      toasts.info('バックアップを書き出しました');
+    } catch (e) {
+      console.error(e);
+      toasts.error('書き出し失敗: ' + (/** @type {any} */ (e)?.message ?? e));
+    }
+  }
+
+  function backupImportClick() {
+    importFileInput?.click();
+  }
+
+  /** @param {Event} ev */
+  async function backupImportChange(ev) {
+    const input = /** @type {HTMLInputElement} */ (ev.target);
+    const file = input.files?.[0];
+    input.value = ''; // 同じファイルを連続選択できるようにリセット
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const ok = confirm(`「${file.name}」から復元します。\n同じIDの工程表は上書きされます。よろしいですか？`);
+      if (!ok) return;
+      const { kouteiCount, settingsRestored } = await importFromJson(text);
+      toasts.info(`復元しました（工程表 ${kouteiCount} 件${settingsRestored ? ' + 設定' : ''}）`);
+      await reload();
+    } catch (e) {
+      console.error(e);
+      toasts.error('復元失敗: ' + (/** @type {any} */ (e)?.message ?? e));
+    }
+  }
+
   /** @param {string} id @param {string} name */
   async function remove(id, name) {
     if (!confirm(`「${name}」を削除します。よろしいですか？`)) return;
@@ -48,6 +90,18 @@
 
 <main>
   <button class="primary big" onclick={newKoutei}>＋ 新規工程表</button>
+
+  <div class="backup-row">
+    <button class="ghost-btn" onclick={backupExport} title="全工程表＋設定をJSONで書き出し">⬇ バックアップ書出</button>
+    <button class="ghost-btn" onclick={backupImportClick} title="JSONから復元（既存IDは上書き）">⬆ 復元</button>
+    <input
+      type="file"
+      accept="application/json,.json"
+      bind:this={importFileInput}
+      onchange={backupImportChange}
+      style="display: none;"
+    />
+  </div>
 
   {#if loading}
     <p class="muted">読み込み中…</p>
@@ -190,6 +244,19 @@
     font-size: 11px;
     margin: 24px 0 8px 0;
     font-family: ui-monospace, "Courier New", monospace;
+  }
+  .backup-row {
+    display: flex;
+    gap: 8px;
+  }
+  .ghost-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    min-height: 40px;
+    font-size: 13px;
+    color: var(--c-fg);
   }
   .del {
     background: transparent;
