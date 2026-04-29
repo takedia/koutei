@@ -70,7 +70,7 @@
   let cellEditorValue = $state('');
   let cellEditorKbn = $state(/** @type {'自社'|'リース'|'外注'} */ ('自社'));
   let cellEditorKbnType = $state(/** @type {'人員'|'重機等'|null} */ (null));
-  let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|'回送プリセット'|null} */ (null));
+  let cellEditorPresetKey = $state(/** @type {'重機プリセット'|'車両プリセット'|'回送プリセット'|'その他プリセット'|null} */ (null));
   let cellEditorNumericOnly = $state(false);
   /** @type {(v: string, kbn: '自社'|'リース'|'外注') => void} */
   let cellEditorCb = $state(() => {});
@@ -197,7 +197,7 @@
       '重機':   { kbn: '重機等', preset: '重機プリセット' },
       '回送':   { kbn: '重機等', preset: '回送プリセット' },
       '車両':   { kbn: '重機等', preset: '車両プリセット' },
-      'その他': { kbn: '重機等', preset: null }
+      'その他': { kbn: '重機等', preset: 'その他プリセット' }
     };
     if (!block.日次セル[date]) {
       block.日次セル = rebuildDayCells(

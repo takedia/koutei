@@ -254,6 +254,16 @@
     </section>
 
     <section>
+      <h2>回送プリセット</h2>
+      <ul>{#each s.回送プリセット as k (k)}<li>{k}</li>{/each}</ul>
+    </section>
+
+    <section>
+      <h2>その他プリセット</h2>
+      <ul>{#each s.その他プリセット as k (k)}<li>{k}</li>{/each}</ul>
+    </section>
+
+    <section>
       <h2>GitHub</h2>
       {#if s.PAT暗号化}
         <p>登録済み</p>

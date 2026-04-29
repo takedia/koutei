@@ -174,11 +174,12 @@ export async function loadSettings() {
     }
   }
   // 旧バージョン互換：配列であるべきフィールドの保証
-  if (!Array.isArray(s.回送プリセット)) { s.回送プリセット = []; mutated = true; }
-  if (!Array.isArray(s.車両プリセット)) { s.車両プリセット = []; mutated = true; }
-  if (!Array.isArray(s.重機プリセット)) { s.重機プリセット = []; mutated = true; }
-  if (!Array.isArray(s.工種辞書))      { s.工種辞書      = [...KOUSHU_DEFAULT]; mutated = true; }
-  if (!Array.isArray(s.宛先プリセット)) { s.宛先プリセット = []; mutated = true; }
+  if (!Array.isArray(s.回送プリセット))   { s.回送プリセット   = []; mutated = true; }
+  if (!Array.isArray(s.車両プリセット))   { s.車両プリセット   = []; mutated = true; }
+  if (!Array.isArray(s.重機プリセット))   { s.重機プリセット   = []; mutated = true; }
+  if (!Array.isArray(s.その他プリセット)) { s.その他プリセット = ['プレート', 'ランマ', 'ハンドローラー']; mutated = true; }
+  if (!Array.isArray(s.工種辞書))         { s.工種辞書         = [...KOUSHU_DEFAULT]; mutated = true; }
+  if (!Array.isArray(s.宛先プリセット))   { s.宛先プリセット   = []; mutated = true; }
   // 旧設定で 車両プリセット に入っていた回送系を 回送プリセット に移動
   const moved = s.車両プリセット.filter(v => REQUIRED_KAISO.includes(v));
   if (moved.length) {
@@ -220,6 +221,7 @@ function defaultSettings() {
     重機プリセット: ['0.7BH', '0.45BH', '0.25BH','0.15BH', 'ラフター25t', 'ラフター50t'],
     車両プリセット: ['10tD','4tD','3tD', '2tD', '4tユニック'],
     回送プリセット: ['10tセルフ', '20tセルフ', '特車'],
+    その他プリセット: ['プレート', 'ランマ', 'ハンドローラー'],
     件名テンプレ: '{職長名} [工程表] {工事番号} {期間}',
     自分のリポ: null
   };
