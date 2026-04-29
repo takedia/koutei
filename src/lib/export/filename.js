@@ -35,38 +35,45 @@ export function isProblematicForIosShare(/** @type {Blob} */ blob) {
 }
 
 /**
- * Blob をダウンロード。
- *
- * - iOS Safari: blob URL を新タブで開く。
- *   PDF はインライン表示 → Safari の共有ボタンで「ファイルに保存」、
- *   xlsx 等はダウンロードプロンプト or 「Numbers で開く」が出る。
- *   <a download> + click() は iOS 17/18 で無反応になることがあるので使わない。
- * - PC / Android: 従来通り <a download> + blob URL で自動ダウンロード。
- *
+ * Blob をダウンロード（PC/Android は <a download>、iOS は共有シート or 新タブにフォールバック）
  * @param {Blob} blob
  * @param {string} filename
  * @returns {Promise<void>}
  */
 export async function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-
   if (isIos()) {
-    // iOS は新タブで blob を開いて Safari に処理させる
+    // xlsx 等は Web Share がテキスト化を起こすので、新タブ Blob 表示を優先
+    const skipShare = isProblematicForIosShare(blob);
+    // ① Web Share API（iOS 15+ Safari 対応）でファイル共有 → 「ファイルに保存」が選べる
+    if (!skipShare) try {
+      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      const nav = /** @type {Navigator & {canShare?:(d:any)=>boolean, share?:(d:any)=>Promise<void>}} */ (navigator);
+      if (typeof nav.canShare === 'function' && nav.canShare({ files: [file] }) && typeof nav.share === 'function') {
+        await nav.share({ files: [file], title: filename });
+        return;
+      }
+    } catch (e) {
+      // ユーザーが共有シートをキャンセルした等。次のフォールバックへ。
+      const name = /** @type {any} */ (e)?.name;
+      if (name === 'AbortError') return;  // ユーザーキャンセルは黙ってリターン
+      console.warn('share failed, fallback to new-tab', e);
+    }
+    // ② 新タブで Blob を開く → ユーザーが「共有→ファイルに保存」等で保存
+    const url = URL.createObjectURL(blob);
     const win = window.open(url, '_blank');
     if (!win) {
-      // ポップアップブロック等で開けなかった時は同タブ遷移
+      // ポップアップブロック時は同タブ遷移
       location.href = url;
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
     return;
   }
 
-  // PC / Android
+  // PC/Android: 従来通りの <a download>
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
-  a.rel = 'noopener';
-  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
