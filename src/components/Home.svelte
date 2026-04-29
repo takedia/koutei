@@ -13,12 +13,25 @@
   let importFileInput = $state(null);
 
   /** @type {[string, import('../lib/db.js').IndexEntry[]][]} */
-  let groups = $state([]);
+  let allGroups = $state([]);
   let loading = $state(true);
+  let showPast = $state(false);
+
+  /** 表示対象の月：当月〜来月（showPast=true なら全期間） */
+  let groups = $derived.by(() => {
+    if (showPast) return allGroups;
+    const thisMonth = dayjs().format('YYYY-MM');
+    const nextMonth = dayjs().add(1, 'month').format('YYYY-MM');
+    return allGroups.filter(([m]) => m >= thisMonth && m <= nextMonth);
+  });
+
+  let pastCount = $derived(
+    allGroups.filter(([m]) => m < dayjs().format('YYYY-MM')).reduce((s, [, es]) => s + es.length, 0)
+  );
 
   async function reload() {
     loading = true;
-    groups = await loadIndexByMonth();
+    allGroups = await loadIndexByMonth();
     loading = false;
   }
 
@@ -106,7 +119,13 @@
   {#if loading}
     <p class="muted">読み込み中…</p>
   {:else if groups.length === 0}
-    <p class="muted">まだ工程表はありません。「＋ 新規工程表」から作成してください。</p>
+    <p class="muted">
+      {#if showPast || pastCount === 0}
+        まだ工程表はありません。「＋ 新規工程表」から作成してください。
+      {:else}
+        今月・来月の工程表はまだありません。「＋ 新規工程表」から作成してください。
+      {/if}
+    </p>
   {:else}
     {#each groups as [month, entries] (month)}
       <section>
@@ -132,6 +151,14 @@
         </ul>
       </section>
     {/each}
+  {/if}
+
+  {#if !loading && pastCount > 0}
+    <div class="past-toggle">
+      <button class="ghost-btn" onclick={() => (showPast = !showPast)}>
+        {showPast ? '📅 当月・来月のみ表示に戻す' : `📜 過去の工程表も表示（${pastCount}件）`}
+      </button>
+    </div>
   {/if}
 
   <p class="version">v{version}{buildLabel() ? ` · ${buildLabel()}` : ''}</p>
@@ -257,6 +284,14 @@
     min-height: 40px;
     font-size: 13px;
     color: var(--c-fg);
+  }
+  .past-toggle {
+    display: flex;
+    margin-top: 8px;
+  }
+  .past-toggle .ghost-btn {
+    flex: 1;
+    color: var(--c-muted);
   }
   .del {
     background: transparent;
