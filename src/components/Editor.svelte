@@ -101,8 +101,25 @@
       return;
     }
     koutei = loaded;
+    normalizePeriod();
     loading = false;
   });
+
+  /** 月間モードで多月にまたがる場合は先頭月の月初〜月末に正規化 */
+  function normalizePeriod() {
+    if (!koutei) return;
+    if (koutei.meta.提出種別 !== '月間') return;
+    const start = koutei.meta.対象期間.開始;
+    const end = koutei.meta.対象期間.終了;
+    const newStart = dayjs(start).startOf('month').format('YYYY-MM-DD');
+    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
+    if (newStart === start && newEnd === end) return;
+    koutei.meta.対象期間.開始 = newStart;
+    koutei.meta.対象期間.終了 = newEnd;
+    for (const b of koutei.工事ブロック) {
+      b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
+    }
+  }
 
   function markDirty() { dirty = true; }
 
@@ -276,89 +293,18 @@
     markDirty();
   }
 
-  /** 月間モード: 表示を ±1 ヶ月スライド（期間長は維持） */
+  /** 月間モード: 表示を ±1 ヶ月スライド（必ず 1 ヶ月分） */
   function shiftMonth(/** @type {number} */ delta) {
     if (!koutei) return;
     if (koutei.meta.提出種別 !== '月間') return;
     const newStart = dayjs(koutei.meta.対象期間.開始).add(delta, 'month').startOf('month').format('YYYY-MM-DD');
-    const oldEnd = koutei.meta.対象期間.終了;
-    const monthsLen = monthsInRange(koutei.meta.対象期間.開始, oldEnd).length;
-    const newEnd = dayjs(newStart).add(monthsLen - 1, 'month').endOf('month').format('YYYY-MM-DD');
+    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
     koutei.meta.対象期間.開始 = newStart;
     koutei.meta.対象期間.終了 = newEnd;
     for (const b of koutei.工事ブロック) {
       b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
     }
     markDirty();
-  }
-
-  /** 月間モードで終了月をさらに +1 ヶ月（月末まで）伸ばす */
-  function extendMonthForward() {
-    if (!koutei) return;
-    if (koutei.meta.提出種別 !== '月間') return;
-    const newEnd = dayjs(koutei.meta.対象期間.終了).add(1, 'month').endOf('month').format('YYYY-MM-DD');
-    koutei.meta.対象期間.終了 = newEnd;
-    for (const b of koutei.工事ブロック) {
-      b.日次セル = rebuildDayCells(koutei.meta.対象期間.開始, newEnd, b.固定行数, b.日次セル);
-    }
-    markDirty();
-  }
-
-  /** 月間モードで先頭月をさらに -1 ヶ月（月初まで）伸ばす */
-  function extendMonthBackward() {
-    if (!koutei) return;
-    if (koutei.meta.提出種別 !== '月間') return;
-    const newStart = dayjs(koutei.meta.対象期間.開始).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
-    koutei.meta.対象期間.開始 = newStart;
-    for (const b of koutei.工事ブロック) {
-      b.日次セル = rebuildDayCells(newStart, koutei.meta.対象期間.終了, b.固定行数, b.日次セル);
-    }
-    markDirty();
-  }
-
-  /** 期間が含む月（YYYY-MM）の配列 */
-  function monthsInRange(/** @type {string} */ start, /** @type {string} */ end) {
-    const startM = dayjs(start).startOf('month');
-    const endM = dayjs(end).startOf('month');
-    const arr = [];
-    let cur = startM;
-    while (cur.isBefore(endM) || cur.isSame(endM)) {
-      arr.push(cur.format('YYYY-MM'));
-      cur = cur.add(1, 'month');
-    }
-    return arr;
-  }
-
-  /** 現在の期間が複数月にまたがっている（月間モードのみ意味あり） */
-  function isMultiMonthPeriod() {
-    if (!koutei) return false;
-    if (koutei.meta.提出種別 !== '月間') return false;
-    return monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了).length > 1;
-  }
-
-  /** 一時的に期間を「指定の月の月初〜月末」にしてから fn を実行、終了後に元の期間に戻す */
-  async function withMonthPeriod(/** @type {string} */ ym, /** @type {() => Promise<any>} */ fn) {
-    if (!koutei) return fn();
-    const orig = { 開始: koutei.meta.対象期間.開始, 終了: koutei.meta.対象期間.終了 };
-    const newStart = dayjs(`${ym}-01`).startOf('month').format('YYYY-MM-DD');
-    const newEnd = dayjs(newStart).endOf('month').format('YYYY-MM-DD');
-    try {
-      koutei.meta.対象期間.開始 = newStart;
-      koutei.meta.対象期間.終了 = newEnd;
-      for (const b of koutei.工事ブロック) {
-        b.日次セル = rebuildDayCells(newStart, newEnd, b.固定行数, b.日次セル);
-      }
-      // Calendar の再描画を 2 フレーム待つ
-      await new Promise(r => requestAnimationFrame(r));
-      await new Promise(r => requestAnimationFrame(r));
-      return await fn();
-    } finally {
-      koutei.meta.対象期間.開始 = orig.開始;
-      koutei.meta.対象期間.終了 = orig.終了;
-      for (const b of koutei.工事ブロック) {
-        b.日次セル = rebuildDayCells(orig.開始, orig.終了, b.固定行数, b.日次セル);
-      }
-    }
   }
 
   let editingBar = $derived(
@@ -386,48 +332,21 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      // 月間モードで複数月にまたがる場合は対象月を 1 つ選んでもらう
-      let monthPeriod = null;
-      if (isMultiMonthPeriod()) {
-        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        monthPeriod = pickMonthDialog(months);
-        if (!monthPeriod) return;
-      }
-
-      const doExport = async () => {
-        toasts.info('Excel生成中…');
-        const xlsxBlob = await exportKouteiAsXlsx(koutei);
-        // プレビュー用に画面を画像化
-        const previewImgBlob = await withPrintingClass(() =>
-          exportElementAsPng(/** @type {HTMLElement} */ (target))
-        );
-        clearPreviewUrl();
-        previewKind = 'xlsx';
-        previewBlob = xlsxBlob;
-        previewUrl = URL.createObjectURL(previewImgBlob);
-        previewFilename = makeFilename(koutei, 'xlsx');
-        previewOpen = true;
-      };
-
-      if (monthPeriod) {
-        await withMonthPeriod(monthPeriod, doExport);
-      } else {
-        await doExport();
-      }
+      toasts.info('Excel生成中…');
+      const xlsxBlob = await exportKouteiAsXlsx(koutei);
+      // プレビュー用に画面を画像化
+      const previewImgBlob = await withPrintingClass(() =>
+        exportElementAsPng(/** @type {HTMLElement} */ (target))
+      );
+      clearPreviewUrl();
+      previewKind = 'xlsx';
+      previewBlob = xlsxBlob;
+      previewUrl = URL.createObjectURL(previewImgBlob);
+      previewFilename = makeFilename(koutei, 'xlsx');
+      previewOpen = true;
     } catch (e) {
       handleExportError(e);
     }
-  }
-
-  /** 月選択（簡易 prompt 版） */
-  function pickMonthDialog(/** @type {string[]} */ months) {
-    const list = months.map((m, i) => `${i + 1}: ${m.replace('-', '/')}`).join('\n');
-    const ans = window.prompt(`どの月分を送信しますか？番号を入力してください。\n${list}`, '1');
-    if (ans == null) return null;
-    const idx = parseInt(ans, 10) - 1;
-    if (Number.isFinite(idx) && idx >= 0 && idx < months.length) return months[idx];
-    toasts.error('番号が正しくありません');
-    return null;
   }
 
   /** 画像/PDF キャプチャ対象 = meta-row + topbar + calendar を含む親 DOM */
@@ -464,31 +383,16 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      let monthPeriod = null;
-      if (isMultiMonthPeriod()) {
-        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        monthPeriod = pickMonthDialog(months);
-        if (!monthPeriod) return;
-      }
-
-      const doExport = async () => {
-        toasts.info('画像生成中…');
-        const blob = await withPrintingClass(() =>
-          exportElementAsPng(/** @type {HTMLElement} */ (target))
-        );
-        clearPreviewUrl();
-        previewKind = 'png';
-        previewBlob = blob;
-        previewUrl = URL.createObjectURL(blob);
-        previewFilename = makeFilename(koutei, 'png');
-        previewOpen = true;
-      };
-
-      if (monthPeriod) {
-        await withMonthPeriod(monthPeriod, doExport);
-      } else {
-        await doExport();
-      }
+      toasts.info('画像生成中…');
+      const blob = await withPrintingClass(() =>
+        exportElementAsPng(/** @type {HTMLElement} */ (target))
+      );
+      clearPreviewUrl();
+      previewKind = 'png';
+      previewBlob = blob;
+      previewUrl = URL.createObjectURL(blob);
+      previewFilename = makeFilename(koutei, 'png');
+      previewOpen = true;
     } catch (e) {
       handleExportError(e);
     }
@@ -503,31 +407,16 @@
         toasts.error('画面要素が見つかりませんでした');
         return;
       }
-      let monthPeriod = null;
-      if (isMultiMonthPeriod()) {
-        const months = monthsInRange(koutei.meta.対象期間.開始, koutei.meta.対象期間.終了);
-        monthPeriod = pickMonthDialog(months);
-        if (!monthPeriod) return;
-      }
-
-      const doExport = async () => {
-        toasts.info('PDF生成中…');
-        const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
-          exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
-        );
-        clearPreviewUrl();
-        previewKind = 'pdf';
-        previewBlob = pdfBlob;
-        previewUrl = URL.createObjectURL(previewImgBlob);
-        previewFilename = makeFilename(koutei, 'pdf');
-        previewOpen = true;
-      };
-
-      if (monthPeriod) {
-        await withMonthPeriod(monthPeriod, doExport);
-      } else {
-        await doExport();
-      }
+      toasts.info('PDF生成中…');
+      const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
+        exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
+      );
+      clearPreviewUrl();
+      previewKind = 'pdf';
+      previewBlob = pdfBlob;
+      previewUrl = URL.createObjectURL(previewImgBlob);
+      previewFilename = makeFilename(koutei, 'pdf');
+      previewOpen = true;
     } catch (e) {
       handleExportError(e);
     }
@@ -662,14 +551,6 @@
         </div>
         <div class="hours-pill">{blockTotalHours(block)}h</div>
       </section>
-      {#if koutei.meta.提出種別 === '月間'}
-        <section class="extend-row">
-          <button class="ghost" onclick={extendMonthBackward} title="先頭に1ヶ月足す">⟵ +1ヶ月</button>
-          <span class="muted small">期間を伸ばす（出力は月ごと）</span>
-          <button class="ghost" onclick={extendMonthForward} title="末尾に1ヶ月足す">+1ヶ月 ⟶</button>
-        </section>
-      {/if}
-
       <div bind:this={calendarRoot}>
         <Calendar
           {block}
@@ -853,26 +734,6 @@
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 700;
-  }
-  .extend-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    background: #fafafa;
-    border-bottom: 1px solid var(--c-border);
-    font-size: 12px;
-    justify-content: center;
-  }
-  .extend-row .ghost {
-    background: transparent;
-    border: 1px solid var(--c-border);
-    min-height: 30px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-  .extend-row .small {
-    margin: 0;
   }
   main {
     padding: 8px;
