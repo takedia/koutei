@@ -84,22 +84,22 @@
 
   async function addPreset() {
     const v = local.trim();
-    if (!v || !presetKey || !settings) {
-      save();
-      return;
-    }
-    if (presets.includes(v)) {
-      save();
-      return;
-    }
-    if (!confirm(`「${v}」をプリセットに追加します。よろしいですか？`)) {
-      save();
-      return;
-    }
+    if (!v || !presetKey || !settings) return;
+    if (presets.includes(v)) return;
+    if (!confirm(`「${v}」をプリセットに追加します。よろしいですか？`)) return;
     settings[presetKey] = [...presets, v];
     await saveSettings(settings);
     presets = settings[presetKey];
-    save();
+  }
+
+  /** プリセットから 1 件削除 */
+  async function removePreset(/** @type {string} */ p, /** @type {Event} */ ev) {
+    ev.stopPropagation();
+    if (!presetKey || !settings) return;
+    if (!confirm(`プリセットから「${p}」を削除します。よろしいですか？`)) return;
+    settings[presetKey] = presets.filter(x => x !== p);
+    await saveSettings(settings);
+    presets = settings[presetKey];
   }
 
   function save() {
@@ -164,10 +164,13 @@
 
           {#if presets.length}
             <div class="presets">
-              <p class="caption">プリセット（タップで入力）</p>
+              <p class="caption">プリセット（タップで入力 / × で削除）</p>
               <div class="grid">
                 {#each presets as p (p)}
-                  <button onclick={() => pick(p)}>{p}</button>
+                  <div class="chip">
+                    <button class="chip-main" onclick={() => pick(p)}>{p}</button>
+                    <button class="chip-x" onclick={(e) => removePreset(p, e)} aria-label={`${p} を削除`}>×</button>
+                  </div>
                 {/each}
               </div>
             </div>
@@ -178,10 +181,9 @@
       <footer>
         <button class="ghost" onclick={clear}>クリア</button>
         {#if !numericOnly && presetKey && local.trim() && !presets.includes(local.trim())}
-          <button class="primary" onclick={addPreset}>＋辞書に追加して入力</button>
-        {:else}
-          <button class="primary save" onclick={save}>入力</button>
+          <button class="ghost add-pre" onclick={addPreset} title="この値をプリセットに登録（入力はしない）">＋辞書追加</button>
         {/if}
+        <button class="primary save" onclick={save}>入力</button>
       </footer>
     </div>
   </div>
@@ -247,12 +249,43 @@
     gap: 6px;
     margin-top: 6px;
   }
-  .grid button {
+  .chip {
+    display: flex;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f9fafb;
+    min-height: 38px;
+  }
+  .chip-main {
+    flex: 1;
     text-align: left;
     padding: 8px 10px;
-    background: #f9fafb;
+    background: transparent;
+    border: none;
     font-size: 13px;
     min-height: 38px;
+    border-radius: 0;
+  }
+  .chip-x {
+    flex: 0 0 auto;
+    width: 32px;
+    border: none;
+    border-left: 1px solid var(--c-border);
+    background: transparent;
+    color: var(--c-muted);
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    min-height: 38px;
+    border-radius: 0;
+  }
+  .chip-x:hover, .chip-x:active { background: #fee2e2; color: #dc2626; }
+  .add-pre {
+    border: 1px solid var(--c-border);
+    font-size: 12px;
+    padding: 0 10px;
+    min-height: 40px;
   }
   /* ホイール式数値ピッカー（誕生日選択風） */
   .wheel-wrap {
