@@ -636,16 +636,21 @@
   .ctrl-row.labelcell { justify-content: flex-start; padding: 0 6px; }
   .ctrls { display: flex; gap: 4px; align-items: center; }
   .mini {
-    min-height: 26px;
-    font-size: 11px;
+    min-height: 18px;
+    font-size: 10px;
     padding: 0 6px;
   }
+  .ctrl-row-fixed .mini {
+    min-height: 16px;
+    font-size: 9px;
+    padding: 0 5px;
+  }
 
-  .day-cell { cursor: pointer; min-height: 28px; }
+  .day-cell { cursor: pointer; min-height: 18px; }
   .day-cell:disabled { background: #f3f4f6; cursor: not-allowed; }
   .day-cell.holiday:disabled { background: #f5e7c2; }
   .day-val {
-    font-size: 11px;
+    font-size: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -654,29 +659,34 @@
     padding: 0 2px;
     font-weight: 600;
   }
-  .muted-cell { background: #f8f9fa; min-height: 28px; }
-  .muted-cell.labelcell { min-height: 28px; }
-  .ctrl-row-fixed { min-height: 24px; background: #fafafa; }
+  .muted-cell { background: #f8f9fa; min-height: 18px; }
+  .muted-cell.labelcell { min-height: 18px; }
+  .ctrl-row-fixed { min-height: 20px; background: #fafafa; }
   .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
 
-  /* 非・人員の固定行はコンパクトに（重機/回送/車両/その他） */
+  /* 非・人員の固定行はさらにコンパクトに（重機/回送/車両/その他） */
   [data-fixed-key='重機'],
   [data-fixed-key='回送'],
   [data-fixed-key='車両'],
   [data-fixed-key='その他'] {
-    min-height: 22px;
+    min-height: 14px;
   }
   [data-fixed-key='重機'] .day-val,
   [data-fixed-key='回送'] .day-val,
   [data-fixed-key='車両'] .day-val,
   [data-fixed-key='その他'] .day-val {
-    font-size: 10px;
+    font-size: 9px;
   }
-  /* 項目名（重機/回送/車両/その他）の文字も少しだけ小さく */
+  /* 項目名（重機/回送/車両/その他）の文字も小さく */
   [data-fixed-key='重機'].key-cell-wide .key-text,
   [data-fixed-key='回送'].key-cell-wide .key-text,
   [data-fixed-key='車両'].key-cell-wide .key-text,
   [data-fixed-key='その他'].key-cell-wide .key-text {
+    font-size: 10px;
+    font-weight: 600;
+  }
+  /* 人員側も少し縮める（全体縮小に追従） */
+  [data-fixed-key='人員'].key-cell .key-text {
     font-size: 11px;
   }
 
@@ -688,7 +698,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    min-height: 30px;
+    min-height: 14px;
   }
   .key-cell-wide {
     border-right: 2px solid var(--c-border);
@@ -707,13 +717,13 @@
     padding: 0 4px;
     display: flex;
     align-items: center;
-    min-height: 30px;
+    min-height: 18px;
   }
   .sub-label-input {
     min-width: 0;
-    min-height: 24px;
-    padding: 1px 4px;
-    font-size: 11px;
+    min-height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
     border: none;
     background: transparent;
     color: var(--c-fg);
