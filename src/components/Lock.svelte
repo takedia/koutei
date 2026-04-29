@@ -1,6 +1,7 @@
 <script>
   import { verifyPassword, authed, authError } from '../lib/auth.js';
   import { version, buildLabel } from '../lib/version.js';
+  import { notifyAccess } from '../lib/beacon.js';
 
   let password = $state('');
   let busy = $state(false);
@@ -15,6 +16,7 @@
     if (ok) {
       authed.set(true);
       password = '';
+      notifyAccess('user-login');
     } else {
       // authError は fetch 失敗の詳細、それ以外は単に不一致
       errorMsg = $authError ?? 'パスワードが一致しません';

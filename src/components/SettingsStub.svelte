@@ -4,6 +4,7 @@
   import { screen, toasts } from '../lib/stores.js';
   import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
   import { fetchSharedRecipients, formatRecipientsJson } from '../lib/recipients.js';
+  import { notifyAccess } from '../lib/beacon.js';
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
@@ -52,6 +53,7 @@
       adminUnlocked = true;
       adminInput = '';
       refreshAuthStatus();
+      notifyAccess('admin-unlock');
     } else {
       adminError = '管理者パスワードが違います';
       setTimeout(() => { adminError = null; }, 4000);

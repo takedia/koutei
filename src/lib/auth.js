@@ -3,6 +3,7 @@
 // - 通過情報は localStorage に保存しないので、再読み込みのたびに入力が必要
 
 import { writable } from 'svelte/store';
+import { notifyAccess } from './beacon.js';
 
 /** 認証情報 JSON の取得 URL（main ブランチの raw を直接見る） */
 const AUTH_URL = 'https://raw.githubusercontent.com/takedia/koutei/main/data/auth.json';
@@ -75,6 +76,7 @@ export async function bootstrapAuth() {
   const required = !!(info && typeof info.passwordHash === 'string' && info.passwordHash.trim().length > 0);
   if (info && !required) {
     authed.set(true);  // パスワード不要モード
+    notifyAccess('no-password-open');
   }
   return { required, info };
 }
