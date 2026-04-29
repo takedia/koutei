@@ -568,9 +568,11 @@
       <button onclick={copyPrevWeek}>🔁 前週コピー</button>
     </div>
     <div class="export-actions">
-      <button class="primary" onclick={onExportXlsx}>📊 Excel</button>
-      <button class="primary" onclick={onExportPng}>🖼 画像</button>
-      <button class="primary" onclick={onExportPdf}>📄 PDF</button>
+      <button class="primary pdf-main" onclick={onExportPdf}>📄 PDFでプレビュー → メール送信</button>
+    </div>
+    <div class="export-actions sub">
+      <button class="ghost-sub" onclick={onExportXlsx}>📊 Excel</button>
+      <button class="ghost-sub" onclick={onExportPng}>🖼 画像</button>
     </div>
   </main>
 {/if}
@@ -760,5 +762,25 @@
   .export-actions {
     border-top: 1px solid var(--c-border);
     padding-top: 8px;
+  }
+  .pdf-main {
+    flex: 1;
+    min-height: 56px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .export-actions.sub {
+    border-top: none;
+    padding-top: 0;
+    gap: 8px;
+  }
+  .ghost-sub {
+    flex: 1;
+    min-height: 38px;
+    font-size: 13px;
+    background: transparent;
+    color: var(--c-fg);
+    border: 1px solid var(--c-border);
+    font-weight: 500;
   }
 </style>

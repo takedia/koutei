@@ -42,8 +42,8 @@
       <footer>
         <div class="filename">{filename}</div>
         <button class="ghost" onclick={onCancel}>閉じる</button>
-        <button class="primary" onclick={onSendMail}>✉️ メール</button>
-        <button class="primary" onclick={onDownload}>📥 ダウンロード</button>
+        <button class="ghost-sub" onclick={onDownload}>📥 ダウンロード</button>
+        <button class="primary mail-main" onclick={onSendMail}>✉️ メール送信</button>
       </footer>
     </div>
   </div>
@@ -118,6 +118,19 @@
   }
   .ghost { background: transparent; }
   footer .primary { min-width: 120px; }
+  .mail-main {
+    min-width: 160px;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .ghost-sub {
+    background: transparent;
+    color: var(--c-fg);
+    border: 1px solid var(--c-border);
+    min-width: 120px;
+    font-weight: 500;
+  }
   .xlsx-note {
     margin: 0;
     padding: 8px 14px;
