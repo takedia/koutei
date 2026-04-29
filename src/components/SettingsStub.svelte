@@ -138,6 +138,15 @@
     s.宛先プリセット = s.宛先プリセット.filter(r => r.メアド !== mail);
   }
 
+  /** プリセット 1 件削除（即時保存） */
+  async function removeFromPreset(/** @type {'重機プリセット'|'車両プリセット'|'回送プリセット'|'その他プリセット'|'工種辞書'} */ key, /** @type {string} */ value) {
+    if (!s) return;
+    if (!confirm(`「${value}」を ${key} から削除します。よろしいですか？`)) return;
+    s[key] = s[key].filter((/** @type {string} */ v) => v !== value);
+    await saveSettings(s);
+    toasts.info('削除しました');
+  }
+
   // ── 共有宛先の編集（管理者専用 / GitHub 反映は手動コミット）
   let sharedNewLabel = $state('');
   let sharedNewMail = $state('');
@@ -240,27 +249,63 @@
 
     <section>
       <h2>工種辞書（{s.工種辞書.length}件）</h2>
-      <ul>{#each s.工種辞書 as k (k)}<li>{k}</li>{/each}</ul>
+      <p class="muted small">× で削除（即時保存・取り消し不可）</p>
+      <div class="preset-grid">
+        {#each s.工種辞書 as k (k)}
+          <div class="preset-chip">
+            <span>{k}</span>
+            <button class="x" onclick={() => removeFromPreset('工種辞書', k)} aria-label={`${k} を削除`}>×</button>
+          </div>
+        {/each}
+      </div>
     </section>
 
     <section>
       <h2>重機プリセット</h2>
-      <ul>{#each s.重機プリセット as k (k)}<li>{k}</li>{/each}</ul>
+      <div class="preset-grid">
+        {#each s.重機プリセット as k (k)}
+          <div class="preset-chip">
+            <span>{k}</span>
+            <button class="x" onclick={() => removeFromPreset('重機プリセット', k)} aria-label={`${k} を削除`}>×</button>
+          </div>
+        {/each}
+      </div>
     </section>
 
     <section>
       <h2>車両プリセット</h2>
-      <ul>{#each s.車両プリセット as k (k)}<li>{k}</li>{/each}</ul>
+      <div class="preset-grid">
+        {#each s.車両プリセット as k (k)}
+          <div class="preset-chip">
+            <span>{k}</span>
+            <button class="x" onclick={() => removeFromPreset('車両プリセット', k)} aria-label={`${k} を削除`}>×</button>
+          </div>
+        {/each}
+      </div>
     </section>
 
     <section>
       <h2>回送プリセット</h2>
-      <ul>{#each s.回送プリセット as k (k)}<li>{k}</li>{/each}</ul>
+      <div class="preset-grid">
+        {#each s.回送プリセット as k (k)}
+          <div class="preset-chip">
+            <span>{k}</span>
+            <button class="x" onclick={() => removeFromPreset('回送プリセット', k)} aria-label={`${k} を削除`}>×</button>
+          </div>
+        {/each}
+      </div>
     </section>
 
     <section>
       <h2>その他プリセット</h2>
-      <ul>{#each s.その他プリセット as k (k)}<li>{k}</li>{/each}</ul>
+      <div class="preset-grid">
+        {#each s.その他プリセット as k (k)}
+          <div class="preset-chip">
+            <span>{k}</span>
+            <button class="x" onclick={() => removeFromPreset('その他プリセット', k)} aria-label={`${k} を削除`}>×</button>
+          </div>
+        {/each}
+      </div>
     </section>
 
     <section>
@@ -554,6 +599,37 @@
     border-radius: 3px;
     font-size: 12px;
   }
+  .preset-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .preset-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+    min-height: 34px;
+  }
+  .preset-chip > span {
+    padding: 0 4px 0 10px;
+    font-size: 13px;
+  }
+  .preset-chip .x {
+    border: none;
+    background: transparent;
+    color: #dc2626;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 8px;
+    min-height: 34px;
+    min-width: 28px;
+    border-radius: 0;
+  }
+  .preset-chip .x:hover, .preset-chip .x:active { background: #fee2e2; }
   .recip {
     list-style: none;
     padding: 0;
