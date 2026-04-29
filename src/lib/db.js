@@ -215,15 +215,13 @@ export async function resetSettings() {
 /** @returns {import('./types.js').設定} */
 function defaultSettings() {
   return {
-    PAT暗号化: null,
     宛先プリセット: [],
     工種辞書: [...KOUSHU_DEFAULT],
     重機プリセット: [...DEFAULT_PRESETS.重機プリセット],
     車両プリセット: [...DEFAULT_PRESETS.車両プリセット],
     回送プリセット: [...DEFAULT_PRESETS.回送プリセット],
     その他プリセット: [...DEFAULT_PRESETS.その他プリセット],
-    件名テンプレ: '{職長名} [工程表] {工事番号} {期間}',
-    自分のリポ: null
+    件名テンプレ: '{職長名} [工程表] {工事番号} {期間}'
   };
 }
 

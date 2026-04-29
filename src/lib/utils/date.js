@@ -72,25 +72,10 @@ export function formatRange(start, end) {
 }
 
 /**
- * 月キー YYYY-MM
- * @param {string} dateStr
- */
-export function monthKey(dateStr) {
-  return dayjs(dateStr).format('YYYY-MM');
-}
-
-/**
  * 「+N日」
  * @param {string} dateStr
  * @param {number} days
  */
 export function addDays(dateStr, days) {
   return dayjs(dateStr).add(days, 'day').format('YYYY-MM-DD');
-}
-
-/**
- * 今日(YYYY-MM-DD)
- */
-export function today() {
-  return dayjs().format('YYYY-MM-DD');
 }

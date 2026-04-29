@@ -36,36 +36,6 @@ async function canvasToPdfBlob(canvas) {
 }
 
 /**
- * 指定要素を PDF Blob に変換（A4 横）
- * @param {HTMLElement} targetEl
- * @returns {Promise<Blob>}
- */
-export async function exportElementAsPdf(targetEl) {
-  const html2canvas = (await import('html2canvas')).default;
-
-  if (document.fonts && document.fonts.ready) {
-    try { await document.fonts.ready; } catch {}
-  }
-
-  const isMobile = typeof navigator !== 'undefined' &&
-    /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
-  const scale = isMobile ? 1 : 1.5;
-
-  const canvas = await html2canvas(targetEl, {
-    backgroundColor: '#ffffff',
-    scale,
-    useCORS: true,
-    logging: false,
-    width: targetEl.scrollWidth,
-    height: targetEl.scrollHeight,
-    windowWidth: targetEl.scrollWidth,
-    windowHeight: targetEl.scrollHeight
-  });
-
-  return canvasToPdfBlob(canvas);
-}
-
-/**
  * PDF と、プレビュー用の PNG Blob をまとめて返す。
  * iframe PDF プレビューが動かないモバイルでも画像プレビューで代用するため。
  * @param {HTMLElement} targetEl

@@ -338,15 +338,6 @@
     </section>
 
     <section>
-      <h2>GitHub</h2>
-      {#if s.PAT暗号化}
-        <p>登録済み</p>
-      {:else}
-        <p class="muted">未登録（Phase 5で登録UIを実装）</p>
-      {/if}
-    </section>
-
-    <section>
       <h2>🔒 管理者メニュー</h2>
       {#if !adminUnlocked}
         <p class="muted small">

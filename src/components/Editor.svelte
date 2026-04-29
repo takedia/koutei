@@ -13,7 +13,7 @@
   import CellEditor from './editor/CellEditor.svelte';
   import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
   import { exportElementAsPng } from '../lib/export/png.js';
-  import { exportElementAsPdf, exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
+  import { exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
   import { makeFilename, downloadBlob } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings, saveSettings } from '../lib/db.js';

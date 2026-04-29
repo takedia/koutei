@@ -19,9 +19,6 @@
 
   /** @type {{ band: number, startDate: string, endDate: string } | null} */
   let dragging = $state(null);
-  /** @type {{ band: number, date: string } | null} */
-  let pendingTap = $state(null);
-  let dragMoved = $state(false);
 
   const COL_WIDTH = 64;
   const KEY_WIDTH = 38;       // 項目名（人員/重機 等）の固定列
@@ -47,9 +44,7 @@
    */
   function onCellPointerDown(bandIdx, date, ev) {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-    pendingTap = { band: bandIdx, date };
     dragging = { band: bandIdx, startDate: date, endDate: date };
-    dragMoved = false;
     /** @type {HTMLElement} */ (ev.currentTarget).setPointerCapture?.(ev.pointerId);
   }
 
@@ -67,7 +62,6 @@
     if (bandIdx !== dragging.band) return;
     if (d !== dragging.endDate) {
       dragging = { ...dragging, endDate: d };
-      if (d !== dragging.startDate) dragMoved = true;
     }
   }
 
@@ -78,8 +72,6 @@
     if (!dragging) return;
     const { band, startDate, endDate } = dragging;
     dragging = null;
-    pendingTap = null;
-    dragMoved = false;
 
     const { 開始, 終了 } = makeRange(startDate, endDate);
     onPickKoushu((label, opts) => {
@@ -96,8 +88,6 @@
 
   function onCellPointerCancel() {
     dragging = null;
-    pendingTap = null;
-    dragMoved = false;
   }
 
   /** ドラッグ中の選択範囲に含まれるか */
