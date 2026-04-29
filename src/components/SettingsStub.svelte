@@ -4,7 +4,21 @@
   import { screen, toasts } from '../lib/stores.js';
   import { sha256Hex, verifyAdminPassword, fetchAuthInfo } from '../lib/auth.js';
   import { fetchSharedRecipients, formatRecipientsJson } from '../lib/recipients.js';
-  import { notifyAccess } from '../lib/beacon.js';
+  import { notifyAccess, isAdminDevice, markAsAdminDevice, unmarkAsAdminDevice } from '../lib/beacon.js';
+
+  let adminDeviceMarked = $state(isAdminDevice());
+
+  function toggleAdminDevice() {
+    if (adminDeviceMarked) {
+      unmarkAsAdminDevice();
+      adminDeviceMarked = false;
+      toasts.info('この端末を管理者扱いから外しました');
+    } else {
+      markAsAdminDevice();
+      adminDeviceMarked = true;
+      toasts.info('この端末を管理者扱いにしました（以降通知なし）');
+    }
+  }
 
   /** @type {import('../lib/types.js').設定 | null} */
   let s = $state(null);
@@ -53,7 +67,12 @@
       adminUnlocked = true;
       adminInput = '';
       refreshAuthStatus();
-      notifyAccess('admin-unlock');
+      // 初回のみ通知 → 同時にこの端末を「管理者」としてマーク（以降通知抑制）
+      if (!isAdminDevice()) {
+        notifyAccess('admin-unlock');
+        markAsAdminDevice();
+        adminDeviceMarked = true;
+      }
     } else {
       adminError = '管理者パスワードが違います';
       setTimeout(() => { adminError = null; }, 4000);
@@ -501,6 +520,23 @@
             />
             <button onclick={addRecipient}>＋追加</button>
           </div>
+        </div>
+
+        <!-- アクセス通知（ntfy）の管理者抑制 -->
+        <div class="admin-sub">
+          <h3>アクセス通知の自分宛抑制</h3>
+          <p class="muted small">
+            この端末を「管理者」扱いにしておくと、自分の操作（ログイン・解錠等）で
+            ntfy 通知が飛ばなくなります。状態：
+            {#if adminDeviceMarked}
+              <span class="badge">管理者扱い（通知なし）</span>
+            {:else}
+              <span class="badge warn">通常端末（通知あり）</span>
+            {/if}
+          </p>
+          <button class="ghost small-btn" onclick={toggleAdminDevice}>
+            {adminDeviceMarked ? '🔔 通知ありに戻す' : '🔕 この端末を管理者扱いにする'}
+          </button>
         </div>
 
         <!-- 設定の初期化（端末ローカル） -->

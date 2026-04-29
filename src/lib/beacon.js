@@ -1,9 +1,28 @@
 // アクセスログ用 beacon
 // ntfy.sh に POST して、購読中の管理者端末（ntfy アプリ）にプッシュ通知が届く。
 // 送信失敗してもアプリの動作には影響しない（fire-and-forget）。
+//
+// 「この端末は管理者」とマークされていれば通知はスキップ（自分の操作で通知が来ないように）
 
 const NTFY_TOPIC = 'koutei-takedia-2026r7q9';
 const NTFY_URL = 'https://ntfy.sh/';
+const ADMIN_DEVICE_KEY = 'koutei-is-admin-device';
+
+/** この端末は管理者扱いか（通知抑制） */
+export function isAdminDevice() {
+  try { return localStorage.getItem(ADMIN_DEVICE_KEY) === '1'; }
+  catch { return false; }
+}
+
+/** 管理者端末としてマーク（admin-unlock 成功時に自動で呼ぶ） */
+export function markAsAdminDevice() {
+  try { localStorage.setItem(ADMIN_DEVICE_KEY, '1'); } catch {}
+}
+
+/** 管理者扱いを解除（設定から手動で） */
+export function unmarkAsAdminDevice() {
+  try { localStorage.removeItem(ADMIN_DEVICE_KEY); } catch {}
+}
 
 /**
  * セッション内で同じ kind を 1 回しか送らないためのフラグ
@@ -17,6 +36,8 @@ const sentInSession = new Set();
  * @param {string} [note] 任意のメモ
  */
 export async function notifyAccess(kind, note) {
+  // 管理者端末からは一切送らない
+  if (isAdminDevice()) return;
   if (sentInSession.has(kind)) return;
   sentInSession.add(kind);
 
