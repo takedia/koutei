@@ -1,4 +1,33 @@
-// PDF 出力（html2canvas → jsPDF で A4 横サイズに収める）
+// PDF 出力（html-to-image → jsPDF で A4 横サイズに収める）
+// html2canvas より iOS Safari + CSS Grid 互換性が良い
+
+/**
+ * Blob を Image 要素に読み込み、Canvas に描画して返す
+ * @param {Blob} blob
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+async function blobToCanvas(blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('画像読み込み失敗'));
+      im.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas context が取得できません');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 /**
  * canvas → PDF Blob（A4 横、画像を1ページに収める）
@@ -42,31 +71,28 @@ async function canvasToPdfBlob(canvas) {
  * @returns {Promise<{pdfBlob: Blob, previewBlob: Blob}>}
  */
 export async function exportElementAsPdfWithPreview(targetEl) {
-  const html2canvas = (await import('html2canvas')).default;
+  const { toBlob } = await import('html-to-image');
 
   if (document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch {}
   }
+  await new Promise(r => requestAnimationFrame(r));
 
   const isMobile = typeof navigator !== 'undefined' &&
     /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
-  const scale = isMobile ? 1 : 1.5;
+  const pixelRatio = isMobile ? 1.5 : 2;
 
-  const canvas = await html2canvas(targetEl, {
+  const previewBlob = await toBlob(targetEl, {
     backgroundColor: '#ffffff',
-    scale,
-    useCORS: true,
-    logging: false,
+    pixelRatio,
     width: targetEl.scrollWidth,
     height: targetEl.scrollHeight,
-    windowWidth: targetEl.scrollWidth,
-    windowHeight: targetEl.scrollHeight
+    cacheBust: true,
+    skipFonts: false
   });
+  if (!previewBlob) throw new Error('プレビュー画像生成に失敗しました');
 
-  // プレビュー用 PNG（軽量化のため jpeg 品質 0.85）
-  const previewBlob = await new Promise((resolve, reject) => {
-    canvas.toBlob(b => b ? resolve(b) : reject(new Error('プレビュー画像生成失敗')), 'image/jpeg', 0.85);
-  });
+  const canvas = await blobToCanvas(previewBlob);
   const pdfBlob = await canvasToPdfBlob(canvas);
   return { pdfBlob, previewBlob };
 }
