@@ -486,23 +486,28 @@
   .sticky-l1 {
     position: sticky;
     left: 0;
-    z-index: 3;
-    background-color: #fff;
+    z-index: 6;
+    background-color: #ffffff !important;
   }
   .sticky-l2 {
     position: sticky;
     left: var(--kw);
-    z-index: 3;
-    background-color: #f8f9fa;
+    z-index: 6;
+    background-color: #f8f9fa !important;
     border-right: 2px solid var(--c-border);
   }
   /* 明示的な不透明背景（html2canvas キャプチャや横スクロール時の透過対策） */
-  .labelcell.sticky-l1     { background-color: #ffffff; }
-  .key-cell.sticky-l1      { background-color: #f8f9fa; }
-  .key-cell-wide.sticky-l1 { background-color: #f8f9fa; }
+  .labelcell.sticky-l1     { background-color: #ffffff !important; }
+  .key-cell.sticky-l1      { background-color: #f8f9fa !important; }
+  .key-cell-wide.sticky-l1 { background-color: #f8f9fa !important; }
   .ctrl-row.sticky-l1,
-  .ctrl-row-fixed.sticky-l1 { background-color: #fafafa; }
-  .head.sticky-l1 { z-index: 5; background-color: #f3f4f6; border-right: 2px solid var(--c-border); }
+  .ctrl-row-fixed.sticky-l1 { background-color: #fafafa !important; }
+  /* 左上角の「項目」ヘッダ：他の sticky head（z:4）より確実に前面に */
+  .head.sticky-l1 {
+    z-index: 12 !important;
+    background-color: #f3f4f6 !important;
+    border-right: 2px solid var(--c-border);
+  }
 
   .labelcell {
     padding: 2px 6px;

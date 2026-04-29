@@ -82,3 +82,9 @@ a {
 .printing .meta-row {
   overflow: visible !important;
 }
+/* 出力時は sticky を解除（html2canvas が sticky 位置を誤計算するのを防ぐ） */
+.printing .sticky-l1,
+.printing .sticky-l2,
+.printing .head {
+  position: static !important;
+}
