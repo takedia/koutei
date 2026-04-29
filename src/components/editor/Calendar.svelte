@@ -371,12 +371,12 @@
       <!-- 項目名セル（rowspan: 全サブ行を縦断） -->
       {#if f.key === '人員'}
         <!-- 人員: col 1 のみ（サブラベル列は別） -->
-        <div class="cell key-cell sticky-l1 muted-cell" style="grid-column: 1; grid-row: {startRow} / span {N};">
+        <div class="cell key-cell sticky-l1 muted-cell" data-fixed-key={f.key} style="grid-column: 1; grid-row: {startRow} / span {N};">
           <span class="key-text">{f.label}</span>
         </div>
       {:else}
         <!-- 他: col 1+2 をマージ（サブラベル無し） -->
-        <div class="cell key-cell-wide sticky-l1 muted-cell" style="grid-column: 1 / 3; grid-row: {startRow} / span {N};">
+        <div class="cell key-cell-wide sticky-l1 muted-cell" data-fixed-key={f.key} style="grid-column: 1 / 3; grid-row: {startRow} / span {N};">
           <span class="key-text">{f.label}</span>
         </div>
       {/if}
@@ -384,7 +384,7 @@
       {#each Array.from({length: N}, (_, i) => i) as si (si)}
         {#if f.key === '人員'}
           <!-- 人員のサブラベルセル（col 2） -->
-          <div class="cell sub-label-cell sticky-l2 muted-cell" style="grid-column: 2; grid-row: {startRow + si};">
+          <div class="cell sub-label-cell sticky-l2 muted-cell" data-fixed-key={f.key} style="grid-column: 2; grid-row: {startRow + si};">
             <input
               type="text"
               class="sub-label-input"
@@ -401,6 +401,7 @@
           {@const color = cellColor(f.key, e.区分, block.固定行ラベル[f.key][si])}
           <button
             class="cell day-cell {dayClass(d)}"
+            data-fixed-key={f.key}
             style="grid-column: {i + 3}; grid-row: {startRow + si};"
             disabled={!anyBandLabeled}
             onclick={() => onEditCell(d, f.key, si)}
@@ -411,8 +412,8 @@
             {/if}
           </button>
         {/each}
-        <div class="cell remark muted-cell" style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
-        <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" style="grid-column: {dates.length + 4}; grid-row: {startRow + si};">
+        <div class="cell remark muted-cell" data-fixed-key={f.key} style="grid-column: {dates.length + 3}; grid-row: {startRow + si};"></div>
+        <div class="cell total {f.key === '人員' ? '' : 'muted-cell'}" data-fixed-key={f.key} style="grid-column: {dates.length + 4}; grid-row: {startRow + si};">
           {f.key === '人員' && sumPerson(si) > 0 ? sumPerson(si) : ''}
         </div>
       {/each}
@@ -640,7 +641,7 @@
     padding: 0 6px;
   }
 
-  .day-cell { cursor: pointer; min-height: 30px; }
+  .day-cell { cursor: pointer; min-height: 28px; }
   .day-cell:disabled { background: #f3f4f6; cursor: not-allowed; }
   .day-cell.holiday:disabled { background: #f5e7c2; }
   .day-val {
@@ -653,10 +654,31 @@
     padding: 0 2px;
     font-weight: 600;
   }
-  .muted-cell { background: #f8f9fa; min-height: 30px; }
-  .muted-cell.labelcell { min-height: 30px; }
-  .ctrl-row-fixed { min-height: 26px; background: #fafafa; }
+  .muted-cell { background: #f8f9fa; min-height: 28px; }
+  .muted-cell.labelcell { min-height: 28px; }
+  .ctrl-row-fixed { min-height: 24px; background: #fafafa; }
   .ctrl-row-fixed.labelcell { justify-content: flex-start; padding: 0 6px; }
+
+  /* 非・人員の固定行はコンパクトに（重機/回送/車両/その他） */
+  [data-fixed-key='重機'],
+  [data-fixed-key='回送'],
+  [data-fixed-key='車両'],
+  [data-fixed-key='その他'] {
+    min-height: 22px;
+  }
+  [data-fixed-key='重機'] .day-val,
+  [data-fixed-key='回送'] .day-val,
+  [data-fixed-key='車両'] .day-val,
+  [data-fixed-key='その他'] .day-val {
+    font-size: 10px;
+  }
+  /* 項目名（重機/回送/車両/その他）の文字も少しだけ小さく */
+  [data-fixed-key='重機'].key-cell-wide .key-text,
+  [data-fixed-key='回送'].key-cell-wide .key-text,
+  [data-fixed-key='車両'].key-cell-wide .key-text,
+  [data-fixed-key='その他'].key-cell-wide .key-text {
+    font-size: 11px;
+  }
 
   /* 項目名セル（人員のみ col 1、他は col 1+2 をマージ。rowspan で全サブ行を縦断） */
   .key-cell, .key-cell-wide {
