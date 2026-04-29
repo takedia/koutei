@@ -1,5 +1,6 @@
 <script>
   import { buildMailto } from '../lib/export/mail.js';
+  import { isProblematicForIosShare } from '../lib/export/filename.js';
 
   /** @type {{
    *   open: boolean,
@@ -14,11 +15,13 @@
    * }} */
   let { open, blob, filename, defaultSubject, defaultBody, presets, onAddPreset, onCancel, onSend } = $props();
 
-  /** Web Share API でファイル付き共有が使える環境かを判定（毎回 blob が変わるので $derived） */
+  /** Web Share API でファイル付き共有が使える環境かを判定（毎回 blob が変わるので $derived）
+   *  iOS の xlsx 等は受信側がテキスト化するため、Web Share をスキップして mailto: 添付フローへ */
   let canShareFile = $derived(
     !!blob && typeof navigator !== 'undefined' &&
     typeof (/** @type {any} */ (navigator).canShare) === 'function' &&
     typeof (/** @type {any} */ (navigator).share) === 'function' &&
+    !isProblematicForIosShare(blob) &&
     (() => {
       try {
         const probe = new File([blob], filename || 'file', { type: blob.type || 'application/octet-stream' });

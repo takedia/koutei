@@ -14,7 +14,7 @@ export function makeFilename(koutei, ext) {
 }
 
 /** iOS Safari/Chrome 判定（iPadOS の Safari は Mac UA を返すので touch も見る） */
-function isIos() {
+export function isIos() {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
   if (/iPhone|iPod/.test(ua)) return true;
@@ -22,6 +22,15 @@ function isIos() {
   if (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) {
     return true;
   }
+  return false;
+}
+
+/** iOS Safari の Web Share API でうまく扱えない（受信側がテキストに化ける）形式 */
+export function isProblematicForIosShare(/** @type {Blob} */ blob) {
+  if (!isIos() || !blob) return false;
+  const t = blob.type || '';
+  // .xlsx (および類似 OOXML) は受信メーラがテキスト化することがあるので Web Share を回避
+  if (t.includes('spreadsheetml') || t.includes('officedocument')) return true;
   return false;
 }
 
@@ -33,8 +42,10 @@ function isIos() {
  */
 export async function downloadBlob(blob, filename) {
   if (isIos()) {
+    // xlsx 等は Web Share がテキスト化を起こすので、新タブ Blob 表示を優先
+    const skipShare = isProblematicForIosShare(blob);
     // ① Web Share API（iOS 15+ Safari 対応）でファイル共有 → 「ファイルに保存」が選べる
-    try {
+    if (!skipShare) try {
       const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
       const nav = /** @type {Navigator & {canShare?:(d:any)=>boolean, share?:(d:any)=>Promise<void>}} */ (navigator);
       if (typeof nav.canShare === 'function' && nav.canShare({ files: [file] }) && typeof nav.share === 'function') {

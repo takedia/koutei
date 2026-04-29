@@ -14,7 +14,7 @@
   import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
   import { exportElementAsPng } from '../lib/export/png.js';
   import { exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
-  import { makeFilename, downloadBlob } from '../lib/export/filename.js';
+  import { makeFilename, downloadBlob, isProblematicForIosShare } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { fetchSharedRecipients } from '../lib/recipients.js';
@@ -436,11 +436,13 @@
     clearPreviewUrl();
   }
 
-  /** Web Share API でファイル付き共有が可能か（端末判定） */
+  /** Web Share API でファイル付き共有が可能か（端末判定）
+   *  iOS の xlsx 等は受信側でテキスト化されるため除外し、事前ダウンロード+mailto に倒す */
   function canShareFiles(/** @type {Blob} */ blob, /** @type {string} */ filename) {
     try {
       const nav = /** @type {any} */ (navigator);
       if (typeof nav?.canShare !== 'function' || typeof nav?.share !== 'function') return false;
+      if (isProblematicForIosShare(blob)) return false;
       const probe = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
       return nav.canShare({ files: [probe] });
     } catch { return false; }
