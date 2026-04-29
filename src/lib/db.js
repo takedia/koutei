@@ -49,19 +49,15 @@ export async function loadIndex() {
   return [...idx].sort((a, b) => (a.最終更新 < b.最終更新 ? 1 : -1));
 }
 
-/** 一覧を月別グルーピング（月をまたぐ工程表は両方の月に出る） */
+/** 一覧を月別グルーピング（各工程表は開始月にのみ表示。月またぎは badge で示す） */
 export async function loadIndexByMonth() {
   const idx = await loadIndex();
   /** @type {Map<string, IndexEntry[]>} */
   const m = new Map();
   for (const e of idx) {
-    const months = new Set([e.月]);
-    if (e.終了月 && e.終了月 !== e.月) months.add(e.終了月);
-    for (const mm of months) {
-      const arr = m.get(mm) ?? [];
-      arr.push(e);
-      m.set(mm, arr);
-    }
+    const arr = m.get(e.月) ?? [];
+    arr.push(e);
+    m.set(e.月, arr);
   }
   return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
 }

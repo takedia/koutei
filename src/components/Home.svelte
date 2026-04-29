@@ -102,10 +102,6 @@
       style="display: none;"
     />
   </div>
-  <p class="backup-hint">
-    💡 書き出し時の共有シートで <strong>Drive</strong> を選び、<br>
-    <code>y08010011666@gmail.com</code> に保存してください
-  </p>
 
   {#if loading}
     <p class="muted">読み込み中…</p>
@@ -252,23 +248,6 @@
   .backup-row {
     display: flex;
     gap: 8px;
-  }
-  .backup-hint {
-    margin: -4px 0 0 0;
-    padding: 8px 10px;
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
-    border-radius: 6px;
-    color: #075985;
-    font-size: 12px;
-    line-height: 1.5;
-    text-align: center;
-  }
-  .backup-hint code {
-    background: #fff;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-size: 11px;
   }
   .ghost-btn {
     flex: 1;
