@@ -142,15 +142,35 @@
       </header>
 
       <div class="body">
-        <p class="note">
-          {#if canShareFile}
-            📎 ファイル <code>{filename}</code> を<strong>添付済み</strong>でメールアプリに渡します。
-            送信ボタンを押すと OS の共有シートが開き、メール送信先を選べます。
-          {:else}
-            📎 添付ファイル <code>{filename}</code> は<strong>すでにダウンロード済み</strong>です。
-            メールアプリが開いたら、ダウンロードフォルダから手動でこのファイルを添付してください。
-          {/if}
-        </p>
+        {#if canShareFile}
+          <div class="note">
+            <p class="note-head">📎 ファイル <code>{filename}</code> を<strong>添付済み</strong>でメールアプリに渡します。</p>
+            <details class="howto">
+              <summary>送信手順（タップで開閉）</summary>
+              <ol class="steps">
+                <li>下の <strong>「✉️📎 ファイル付き共有」</strong> ボタンを押す</li>
+                <li>共有メニューから <strong>「メール」「Gmail」</strong> など使うメールアプリを選ぶ</li>
+                <li>ファイルが<strong>添付された状態</strong>でメール作成画面が開く</li>
+                <li>宛先・件名・本文を確認して<strong>送信</strong></li>
+              </ol>
+            </details>
+          </div>
+        {:else}
+          <div class="note">
+            <p class="note-head">📎 添付ファイル <code>{filename}</code> は<strong>すでに保存済み</strong>です。メールアプリで手動添付してください。</p>
+            <details class="howto" open>
+              <summary>送信手順（タップで開閉）</summary>
+              <ol class="steps">
+                <li>下の <strong>「✉️ メールアプリを開く」</strong> ボタンを押す</li>
+                <li>メールアプリが起動し、宛先・件名・本文がセットされた状態で開く</li>
+                <li>メール作成画面の <strong>📎 (クリップマーク)</strong> または <strong>「添付」</strong> ボタンを押す</li>
+                <li><strong>「ファイル」「ダウンロード」</strong> アプリを開き、先ほど保存した <code>{filename}</code> を選択して添付</li>
+                <li>添付できたら<strong>送信</strong></li>
+              </ol>
+              <p class="tip">💡 ファイルが見つからない時は、iPhone なら「ファイル」アプリ → 「最近使った項目」、Android なら「Files」アプリ → 「ダウンロード」フォルダを確認。</p>
+            </details>
+          </div>
+        {/if}
 
         <section>
           <h3>宛先{lockRecipients ? '（管理者モード: 固定）' : '（複数選択可）'}</h3>
@@ -277,6 +297,33 @@
     margin: 0;
     font-size: 13px;
     line-height: 1.5;
+  }
+  .note-head {
+    margin: 0 0 4px 0;
+  }
+  .howto {
+    margin-top: 6px;
+  }
+  .howto > summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 4px 0;
+    user-select: none;
+  }
+  .steps {
+    margin: 6px 0 4px 0;
+    padding-left: 20px;
+  }
+  .steps li {
+    margin: 4px 0;
+  }
+  .tip {
+    background: #fffbe6;
+    border-top: 1px dashed #e5d76b;
+    margin: 8px 0 0 0;
+    padding-top: 6px;
+    font-size: 12px;
+    color: #6b5d00;
   }
   section {
     display: flex;
