@@ -9,11 +9,12 @@
    *   defaultSubject: string,
    *   defaultBody: string,
    *   presets: {ラベル: string, メアド: string}[],
+   *   lockRecipients?: boolean,
    *   onAddPreset: (preset: {ラベル: string, メアド: string}) => Promise<void>,
    *   onCancel: () => void,
    *   onSend: () => void
    * }} */
-  let { open, blob, filename, defaultSubject, defaultBody, presets, onAddPreset, onCancel, onSend } = $props();
+  let { open, blob, filename, defaultSubject, defaultBody, presets, lockRecipients = false, onAddPreset, onCancel, onSend } = $props();
 
   /** Web Share API でファイル付き共有が使える環境かを判定（毎回 blob が変わるので $derived）
    *  iOS の xlsx 等は受信側がテキスト化するため、Web Share をスキップして mailto: 添付フローへ */
@@ -41,7 +42,10 @@
   $effect(() => {
     if (open) {
       // 開く時に値をリセット
-      selected = new Set();
+      // 宛先固定モードでは渡された presets を全件選択済みにする
+      selected = lockRecipients
+        ? new Set(presets.map(p => p.メアド))
+        : new Set();
       subject = defaultSubject;
       body = defaultBody;
       manualLabel = '';
@@ -51,6 +55,7 @@
 
   /** @param {string} mail */
   function toggle(mail) {
+    if (lockRecipients) return;  // 固定モードでは変更不可
     const next = new Set(selected);
     if (next.has(mail)) next.delete(mail);
     else next.add(mail);
@@ -148,17 +153,18 @@
         </p>
 
         <section>
-          <h3>宛先（複数選択可）</h3>
+          <h3>宛先{lockRecipients ? '（管理者モード: 固定）' : '（複数選択可）'}</h3>
           {#if presets.length === 0}
             <p class="muted">プリセット未登録。設定画面から追加できます。</p>
           {:else}
             <ul class="presets">
               {#each presets as p (p.メアド)}
                 <li>
-                  <label>
+                  <label class:locked={lockRecipients}>
                     <input
                       type="checkbox"
                       checked={selected.has(p.メアド)}
+                      disabled={lockRecipients}
                       onchange={() => toggle(p.メアド)}
                     />
                     <span class="lab">{p.ラベル}</span>
@@ -168,30 +174,32 @@
               {/each}
             </ul>
           {/if}
-          <div class="manual">
-            <p class="muted small">その他の宛先（プリセット未登録）も入力可。</p>
-            <div class="manual-row">
-              <input
-                type="text"
-                bind:value={manualLabel}
-                placeholder="ラベル（任意）"
-              />
-              <input
-                type="email"
-                bind:value={manualMail}
-                placeholder="メールアドレス"
-                autocomplete="email"
-              />
-              <button
-                type="button"
-                onclick={savePreset}
-                disabled={savingPreset || !manualMail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualMail.trim()) || presets.some(p => p.メアド.toLowerCase() === manualMail.trim().toLowerCase())}
-                title="このアドレスを宛先プリセットに保存"
-              >
-                💾 保存
-              </button>
+          {#if !lockRecipients}
+            <div class="manual">
+              <p class="muted small">その他の宛先（プリセット未登録）も入力可。</p>
+              <div class="manual-row">
+                <input
+                  type="text"
+                  bind:value={manualLabel}
+                  placeholder="ラベル（任意）"
+                />
+                <input
+                  type="email"
+                  bind:value={manualMail}
+                  placeholder="メールアドレス"
+                  autocomplete="email"
+                />
+                <button
+                  type="button"
+                  onclick={savePreset}
+                  disabled={savingPreset || !manualMail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualMail.trim()) || presets.some(p => p.メアド.toLowerCase() === manualMail.trim().toLowerCase())}
+                  title="このアドレスを宛先プリセットに保存"
+                >
+                  💾 保存
+                </button>
+              </div>
             </div>
-          </div>
+          {/if}
         </section>
 
         <section>
@@ -298,6 +306,11 @@
     border-radius: 6px;
     cursor: pointer;
     background: #fff;
+  }
+  .presets label.locked {
+    cursor: default;
+    background: #f3f4f6;
+    border-color: #c6c8cc;
   }
   .lab {
     font-weight: 600;
