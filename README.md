@@ -1,5 +1,7 @@
 # 現場工程表 (koutei)
 
+公開URL: <https://takedia.github.io/koutei/>
+
 土木現場の簡易工程表（バーチャート型）をスマホで作成・提出するためのWebアプリ。
 
 - ホスティング: GitHub Pages（静的SPA）
