@@ -446,11 +446,13 @@
       const sizeKb = Math.max(1, Math.round(r.size / 1024));
       const tag = `${r.ext.toUpperCase()} / ${sizeKb} KB`;
       switch (r.status) {
-        case 'downloaded':
-          toasts.info(`ダウンロードしました（${tag}）`);
-          break;
         case 'shared':
-          toasts.info(`共有しました（${tag}）`);
+          // navigator.share() の Promise が解決 = ユーザーが本当に共有/保存を完了
+          toasts.info(`保存しました（${tag}）`);
+          break;
+        case 'downloaded':
+          // <a download> を click したが OS 側の保存完了は確認できない
+          toasts.info(`ダウンロードを実行しました（${tag} / ファイルアプリ等をご確認ください）`);
           break;
         case 'opened':
           toasts.info(`新しいタブで開きました。共有→「ファイルに保存」で保存してください（${tag}）`);

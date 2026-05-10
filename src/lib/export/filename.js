@@ -118,10 +118,26 @@ export async function downloadBlob(blob, filename) {
   const size = blob.size;
 
   if (isIos()) {
-    // xlsx 等: Web Share だとテキスト化、xlsx MIME のままだと Safari が
-    // 「開こうとして」失敗する。application/octet-stream に再ラップした上で
-    // <a download> を同期的に click（user gesture を切らさない）。
+    // xlsx 等: 過去の試行で Web Share (xlsx MIME) → テキスト化、<a download> →
+    // click 無反応、window.open → URL のみ保存 だった。今回は Web Share API で
+    // ファイルを渡すが、MIME を application/octet-stream に偽装することで
+    //   - iOS の「Excel として送る」変換を回避し
+    //   - share() の Promise で本当に完了したか判定できる
+    // ようにする。share() が使えない端末は anchor download にフォールバック。
     if (isProblematicForIosShare(blob)) {
+      try {
+        const file = new File([blob], filename, { type: 'application/octet-stream' });
+        const nav = /** @type {Navigator & {canShare?:(d:any)=>boolean, share?:(d:any)=>Promise<void>}} */ (navigator);
+        if (typeof nav.canShare === 'function' && nav.canShare({ files: [file] }) && typeof nav.share === 'function') {
+          await nav.share({ files: [file], title: filename });
+          return { status: 'shared', size, ext };
+        }
+      } catch (e) {
+        const name = /** @type {any} */ (e)?.name;
+        if (name === 'AbortError') return { status: 'cancelled', size, ext };
+        console.warn('xlsx share failed, fallback to anchor', e);
+      }
+      // フォールバック: octet-stream 再ラップ + <a download>
       const dlBlob = new Blob([blob], { type: 'application/octet-stream' });
       triggerAnchorDownload(dlBlob, filename);
       return { status: 'downloaded', size, ext };
