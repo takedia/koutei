@@ -35,7 +35,7 @@ export function isProblematicForIosShare(/** @type {Blob} */ blob) {
 }
 
 /** ファイル名からの拡張子推定（.xlsx / .pdf / .png / .json 等） */
-function extFromFilename(/** @type {string} */ filename) {
+export function extFromFilename(/** @type {string} */ filename) {
   const m = /\.([a-z0-9]+)$/i.exec(filename || '');
   return m ? m[1].toLowerCase() : '';
 }
@@ -43,11 +43,13 @@ function extFromFilename(/** @type {string} */ filename) {
 /**
  * Blob 先頭バイトを読んで形式マジックを検証する。
  * 既知形式のみチェック、未知の拡張子は true を返す。
+ * downloadBlob からは呼ばない（async が iOS の user gesture を切るため）。
+ * 呼び出し側が「生成直後」に await して使うこと。
  * @param {Blob} blob
  * @param {string} ext  拡張子（lowercase, 先頭ドットなし）
  * @returns {Promise<boolean>}
  */
-async function verifyBlobFormat(blob, ext) {
+export async function verifyBlobFormat(blob, ext) {
   if (!blob || blob.size === 0) return false;
   let head;
   try {
@@ -89,13 +91,20 @@ function triggerAnchorDownload(blob, filename) {
 /**
  * Blob をダウンロード。
  *
- * 戻り値の status:
- *   - 'downloaded': &lt;a download&gt; をトリガ済み（OS 側保存は確認できないが API は呼んだ）
- *   - 'shared'    : Web Share API が成功（ユーザーが共有先を選択）
- *   - 'opened'    : 新タブで blob を開いた（ユーザーが手動保存する必要あり）
- *   - 'cancelled' : ユーザーが共有シートをキャンセル
+ * 重要: iOS Safari は async/await が間に挟まると user gesture が切れて
+ * &lt;a download&gt; や window.open が無効化されるため、呼ばれた瞬間に
+ * **同期的にトリガ** する設計にしている。
+ *  - xlsx 等の anchor download パスは完全 sync
+ *  - PDF/PNG の Web Share パスのみ navigator.share() の Promise を await する
+ *    （share() の呼び出し自体が同期なので gesture は維持される）
  *
- * 形式不一致や 0 byte の場合は Error を throw する。
+ * 形式マジックバイトの検証は呼び出し側で「生成直後」に行うこと（verifyBlobFormat）。
+ *
+ * 戻り値の status:
+ *   - 'downloaded': &lt;a download&gt; をトリガ済み
+ *   - 'shared'    : Web Share API が成功
+ *   - 'opened'    : 新タブで blob を開いた（手動保存が必要）
+ *   - 'cancelled' : ユーザーが共有シートをキャンセル
  *
  * @param {Blob} blob
  * @param {string} filename
@@ -103,22 +112,22 @@ function triggerAnchorDownload(blob, filename) {
  */
 export async function downloadBlob(blob, filename) {
   const ext = extFromFilename(filename);
-  const ok = await verifyBlobFormat(blob, ext);
-  if (!ok) {
-    throw new Error(`生成ファイルの形式が不正です（${ext || '不明'} / ${blob?.size ?? 0} byte）`);
+  if (!blob || blob.size === 0) {
+    throw new Error(`ファイルが空です（${ext || '不明'}）`);
   }
   const size = blob.size;
 
   if (isIos()) {
     // xlsx 等: Web Share だとテキスト化、xlsx MIME のままだと Safari が
     // 「開こうとして」失敗する。application/octet-stream に再ラップした上で
-    // <a download> を同期的に click する。
+    // <a download> を同期的に click（user gesture を切らさない）。
     if (isProblematicForIosShare(blob)) {
       const dlBlob = new Blob([blob], { type: 'application/octet-stream' });
       triggerAnchorDownload(dlBlob, filename);
       return { status: 'downloaded', size, ext };
     }
     // PDF/PNG: Web Share API（共有シート → ファイルに保存 等）
+    // navigator.share() の呼び出しは同期なので user gesture は維持される。
     try {
       const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
       const nav = /** @type {Navigator & {canShare?:(d:any)=>boolean, share?:(d:any)=>Promise<void>}} */ (navigator);

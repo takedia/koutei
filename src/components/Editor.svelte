@@ -14,7 +14,7 @@
   import { exportKouteiAsXlsx } from '../lib/export/xlsx.js';
   import { exportElementAsPng } from '../lib/export/png.js';
   import { exportElementAsPdfWithPreview } from '../lib/export/pdf.js';
-  import { makeFilename, downloadBlob, isProblematicForIosShare } from '../lib/export/filename.js';
+  import { makeFilename, downloadBlob, isProblematicForIosShare, verifyBlobFormat } from '../lib/export/filename.js';
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { fetchSharedRecipients } from '../lib/recipients.js';
@@ -337,6 +337,9 @@
       }
       toasts.info('Excel生成中…');
       const xlsxBlob = await exportKouteiAsXlsx(koutei);
+      if (!(await verifyBlobFormat(xlsxBlob, 'xlsx'))) {
+        throw new Error(`生成された Excel が不正です（${xlsxBlob?.size ?? 0} byte）`);
+      }
       // プレビュー用に画面を画像化
       const previewImgBlob = await withPrintingClass(() =>
         exportElementAsPng(/** @type {HTMLElement} */ (target))
@@ -390,6 +393,9 @@
       const blob = await withPrintingClass(() =>
         exportElementAsPng(/** @type {HTMLElement} */ (target))
       );
+      if (!(await verifyBlobFormat(blob, 'png'))) {
+        throw new Error(`生成された画像が不正です（${blob?.size ?? 0} byte）`);
+      }
       clearPreviewUrl();
       previewKind = 'png';
       previewBlob = blob;
@@ -414,6 +420,9 @@
       const { pdfBlob, previewBlob: previewImgBlob } = await withPrintingClass(() =>
         exportElementAsPdfWithPreview(/** @type {HTMLElement} */ (target))
       );
+      if (!(await verifyBlobFormat(pdfBlob, 'pdf'))) {
+        throw new Error(`生成された PDF が不正です（${pdfBlob?.size ?? 0} byte）`);
+      }
       clearPreviewUrl();
       previewKind = 'pdf';
       previewBlob = pdfBlob;
