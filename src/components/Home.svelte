@@ -56,8 +56,10 @@
       const json = await exportAllAsJson();
       const blob = new Blob([json], { type: 'application/json' });
       const fname = `koutei-backup_${dayjs().format('YYYYMMDD-HHmm')}.json`;
-      await downloadBlob(blob, fname);
-      toasts.info('バックアップを書き出しました');
+      const r = await downloadBlob(blob, fname);
+      const sizeKb = Math.max(1, Math.round(r.size / 1024));
+      if (r.status === 'cancelled') return;
+      toasts.info(`バックアップを書き出しました（JSON / ${sizeKb} KB）`);
     } catch (e) {
       console.error(e);
       toasts.error('書き出し失敗: ' + (/** @type {any} */ (e)?.message ?? e));

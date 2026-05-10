@@ -422,13 +422,34 @@
     }
   }
 
-  function previewDownload() {
+  async function previewDownload() {
     if (!previewBlob || !previewFilename) return;
-    downloadBlob(previewBlob, previewFilename);
+    const blob = previewBlob;
+    const fname = previewFilename;
     previewOpen = false;
     previewBlob = null;
     clearPreviewUrl();
-    toasts.info('ダウンロードしました');
+    try {
+      const r = await downloadBlob(blob, fname);
+      const sizeKb = Math.max(1, Math.round(r.size / 1024));
+      const tag = `${r.ext.toUpperCase()} / ${sizeKb} KB`;
+      switch (r.status) {
+        case 'downloaded':
+          toasts.info(`ダウンロードしました（${tag}）`);
+          break;
+        case 'shared':
+          toasts.info(`共有しました（${tag}）`);
+          break;
+        case 'opened':
+          toasts.info(`新しいタブで開きました。共有→「ファイルに保存」で保存してください（${tag}）`);
+          break;
+        case 'cancelled':
+          // ユーザーが共有シートをキャンセル: 通知不要
+          break;
+      }
+    } catch (e) {
+      handleExportError(e);
+    }
   }
   function previewClose() {
     previewOpen = false;
@@ -457,7 +478,7 @@
     try {
       // 共有 API が使えない場合のみ事前ダウンロードして「ダウンロード済み」状態にする
       if (!canShareFiles(blob, filename)) {
-        downloadBlob(blob, filename);
+        await downloadBlob(blob, filename);
       }
       const [settings, shared] = await Promise.all([
         loadSettings(),
