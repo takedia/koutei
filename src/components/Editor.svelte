@@ -404,6 +404,22 @@
     }
   }
 
+  /** JSON 送信: この工程表 1件分の JSON を生成し、直接メール送信フローへ。
+   *  受信側は ホーム画面 → 復元(JSON) で完全復元できる(取引先用ではなく中継/バックアップ用)。 */
+  async function onSendJson() {
+    if (!koutei) return;
+    try {
+      if (dirty) await save();
+      const jsonText = JSON.stringify(koutei, null, 2);
+      const blob = new Blob([jsonText], { type: 'application/json' });
+      const filename = makeFilename(koutei, 'json');
+      // プレビューなしで直接メール送信モーダルを開く
+      await startMailFlow(blob, filename);
+    } catch (e) {
+      handleExportError(e);
+    }
+  }
+
   async function onExportPdf() {
     if (!koutei) return;
     try {
@@ -608,6 +624,7 @@
     <div class="export-actions sub">
       <button class="ghost-sub" onclick={onExportXlsx}>📊 Excel</button>
       <button class="ghost-sub" onclick={onExportPng}>🖼 画像</button>
+      <button class="ghost-sub" onclick={onSendJson} title="この工程表データそのものをメール添付。受信側はホーム画面の『復元』からインポートで完全復元できる">📋 JSON送信</button>
     </div>
   </main>
 {/if}

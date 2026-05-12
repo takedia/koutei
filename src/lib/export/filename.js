@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 
 /**
  * @param {import('../types.js').Koutei} koutei
- * @param {'xlsx'|'pdf'|'png'} ext
+ * @param {'xlsx'|'pdf'|'png'|'json'} ext
  */
 export function makeFilename(koutei, ext) {
   const block = koutei.工事ブロック[0];
