@@ -465,7 +465,7 @@
           break;
         case 'downloaded':
           // <a download> を click したが OS 側の保存完了は確認できない
-          toasts.info(`ダウンロードを実行しました（${tag} / ファイルアプリ等をご確認ください）`);
+          toasts.info(`ダウンロードを実行しました（${tag} / 保存先をご確認ください）`);
           break;
         case 'opened':
           toasts.info(`新しいタブで開きました。共有→「ファイルに保存」で保存してください（${tag}）`);
