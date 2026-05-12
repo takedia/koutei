@@ -18,7 +18,6 @@
   import { renderSubject, defaultBody } from '../lib/export/mail.js';
   import { loadSettings, saveSettings } from '../lib/db.js';
   import { fetchSharedRecipients } from '../lib/recipients.js';
-  import { isAdminDevice } from '../lib/beacon.js';
   import ExportPreview from './ExportPreview.svelte';
   import MailCompose from './MailCompose.svelte';
   import { isStaleChunkError, reloadOnceForStaleChunk } from '../main.js';
@@ -44,8 +43,6 @@
   let mailBody = $state('');
   /** @type {{ラベル:string, メアド:string}[]} */
   let mailPresets = $state([]);
-  /** 管理者端末: 宛先を 武田 のみに固定する */
-  let mailLockRecipients = $state(false);
 
   const isMobileUa = typeof navigator !== 'undefined' &&
     /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -509,21 +506,7 @@
         ...shared,
         ...personal.filter(p => !seen.has(p.メアド.toLowerCase()))
       ];
-      // 管理者端末では「武田」宛のみに固定（テスト用途）。
-      // 該当エントリが共有/個人どちらにも無ければロックせず通常表示にフォールバック。
-      if (isAdminDevice()) {
-        const takeda = merged.find(p => p.ラベル === '武田');
-        if (takeda) {
-          mailPresets = [takeda];
-          mailLockRecipients = true;
-        } else {
-          mailPresets = merged;
-          mailLockRecipients = false;
-        }
-      } else {
-        mailPresets = merged;
-        mailLockRecipients = false;
-      }
+      mailPresets = merged;
       mailOpen = true;
     } catch (e) {
       handleExportError(e);
@@ -672,7 +655,6 @@
   defaultSubject={mailSubject}
   defaultBody={mailBody}
   presets={mailPresets}
-  lockRecipients={mailLockRecipients}
   onAddPreset={mailAddPreset}
   onCancel={mailClose}
   onSend={mailSent}
